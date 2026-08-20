@@ -12,7 +12,8 @@
  *    an image or a gradient instead of a flat fill.
  */
 
-import type { Color, Oklch, Rgb } from 'culori'
+import type { Oklch, Rgb } from 'culori'
+import type { ColorInput } from './types'
 import { toOklch, toRgb } from './convert'
 import { deltaEOK } from './gamut'
 
@@ -27,7 +28,7 @@ export interface AlphaVariant {
 }
 
 /** The simple ladder: one color, many opacities. */
-export function alphaLadder(color: Color, steps: number[] = DEFAULT_ALPHA_STEPS): AlphaVariant[] {
+export function alphaLadder(color: ColorInput, steps: number[] = DEFAULT_ALPHA_STEPS): AlphaVariant[] {
   const base = toOklch(color) as Oklch
   return steps.map((alpha) => ({
     alpha,
@@ -37,7 +38,7 @@ export function alphaLadder(color: Color, steps: number[] = DEFAULT_ALPHA_STEPS)
 }
 
 /** Composite `fg` (with alpha) over `bg`, in gamma-encoded sRGB as browsers do. */
-export function composite(fg: Color, bg: Color): Oklch {
+export function composite(fg: ColorInput, bg: ColorInput): Oklch {
   const f = toRgb(fg) as Rgb
   const b = toRgb(bg) as Rgb
   const a = f.alpha ?? 1
@@ -68,7 +69,7 @@ export interface SolvedAlpha {
  * of those floors is the answer, and it is the *minimum* alpha that works —
  * exactly what you want, since a lower alpha adapts better to varied surfaces.
  */
-export function solveAlpha(target: Color, background: Color): SolvedAlpha {
+export function solveAlpha(target: ColorInput, background: ColorInput): SolvedAlpha {
   const t = toRgb(target) as Rgb
   const bg = toRgb(background) as Rgb
   const channels: Array<[number, number]> = [
@@ -110,7 +111,7 @@ export function solveAlpha(target: Color, background: Color): SolvedAlpha {
  * the Radix approach. Feed it a tonal scale and its light background and you
  * get overlay-safe equivalents of every step.
  */
-export function alphaScaleFrom(steps: Color[], background: Color): SolvedAlpha[] {
+export function alphaScaleFrom(steps: ColorInput[], background: ColorInput): SolvedAlpha[] {
   return steps.map((step) => solveAlpha(step, background))
 }
 
@@ -118,7 +119,7 @@ export function alphaScaleFrom(steps: Color[], background: Color): SolvedAlpha[]
  * Neutral overlay ladder — black over light surfaces, white over dark ones.
  * The everyday case for scrims, hover fills and dividers.
  */
-export function overlayLadder(background: Color, steps: number[] = DEFAULT_ALPHA_STEPS): AlphaVariant[] {
+export function overlayLadder(background: ColorInput, steps: number[] = DEFAULT_ALPHA_STEPS): AlphaVariant[] {
   const bg = toOklch(background) as Oklch
   const dark = (bg.l ?? 1) < 0.5
   const base: Oklch = { mode: 'oklch', l: dark ? 1 : 0, c: 0, h: 0 }

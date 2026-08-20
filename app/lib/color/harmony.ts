@@ -11,10 +11,10 @@
  *    mean when they say complementary.
  */
 
-import type { Color, Oklch } from 'culori'
+import type { Oklch } from 'culori'
 import { toOklch } from './convert'
 import { mapToGamut, maxChroma } from './gamut'
-import type { GamutStrategy } from './types'
+import type { GamutStrategy, ColorInput } from './types'
 
 export type HarmonyId =
   | 'complementary'
@@ -172,7 +172,7 @@ function fitOffsets(offsets: number[], count: number, spread: number): number[] 
   return out.slice(0, count)
 }
 
-export function harmony(seed: Color, id: HarmonyId, options: Partial<HarmonyOptions> = {}): Oklch[] {
+export function harmony(seed: ColorInput, id: HarmonyId, options: Partial<HarmonyOptions> = {}): Oklch[] {
   const opts = { ...DEFAULT_HARMONY_OPTIONS, ...options }
   const base = toOklch(seed) as Oklch
   const hue = base.h ?? 0

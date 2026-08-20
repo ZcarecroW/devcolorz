@@ -11,6 +11,13 @@ import type { Color, Oklch, Rgb } from 'culori'
 
 export type { Color, Oklch, Rgb }
 
+/**
+ * What every public engine function accepts. culori parses CSS strings just as
+ * happily as it consumes color objects, so requiring callers to parse first
+ * would be friction with no benefit.
+ */
+export type ColorInput = Color | string
+
 /** Every color space the UI can expose as a set of editable channels. */
 export type SpaceId =
   | 'oklch'

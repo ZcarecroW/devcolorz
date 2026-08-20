@@ -11,11 +11,10 @@ import {
   filterDeficiencyProt,
   filterDeficiencyTrit,
   filterGrayscale,
-  type Color,
 } from 'culori'
 import { toOklch } from './convert'
 import { deltaEOK } from './gamut'
-import type { Oklch } from './types'
+import type { Oklch, ColorInput } from './types'
 
 export type CvdType =
   | 'none'
@@ -34,10 +33,10 @@ interface CvdDef {
   /** Share of the population affected, as shown in the UI. */
   prevalence: string
   hint: string
-  apply: (color: Color) => Color
+  apply: (color: ColorInput) => Oklch
 }
 
-const identity = (color: Color) => color
+const identity = (color: ColorInput): Oklch => toOklch(color)
 
 export const CVD_TYPES: Record<CvdType, CvdDef> = {
   none: {
@@ -117,13 +116,13 @@ export const CVD_AUDIT_SET: CvdType[] = [
 ]
 
 /** Simulate how a color appears under a given deficiency. */
-export function simulate(color: Color, type: CvdType): Oklch {
+export function simulate(color: ColorInput, type: CvdType): Oklch {
   const def = CVD_TYPES[type] ?? CVD_TYPES.none
   return toOklch(def.apply(color)) as Oklch
 }
 
 /** Simulate a whole palette. */
-export function simulatePalette(colors: Color[], type: CvdType): Oklch[] {
+export function simulatePalette(colors: ColorInput[], type: CvdType): Oklch[] {
   if (type === 'none') return colors.map((c) => toOklch(c) as Oklch)
   return colors.map((c) => simulate(c, type))
 }
@@ -144,7 +143,7 @@ export interface CvdCollision {
  * `threshold` is in ΔEOK×100 units; 5 is roughly "a careful eye can still
  * tell them apart", 2 is "these are the same color now".
  */
-export function findCollisions(colors: Color[], threshold = 5): CvdCollision[] {
+export function findCollisions(colors: ColorInput[], threshold = 5): CvdCollision[] {
   const out: CvdCollision[] = []
   for (const type of CVD_AUDIT_SET) {
     const simulated = simulatePalette(colors, type)
@@ -167,7 +166,7 @@ export function findCollisions(colors: Color[], threshold = 5): CvdCollision[] {
  * A single 0–100 score for how well a palette survives color blindness:
  * the fraction of distinguishable pairs that stay distinguishable.
  */
-export function cvdSafetyScore(colors: Color[], threshold = 5): number {
+export function cvdSafetyScore(colors: ColorInput[], threshold = 5): number {
   if (colors.length < 2) return 100
   let pairs = 0
   let survived = 0

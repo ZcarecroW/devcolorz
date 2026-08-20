@@ -8,7 +8,7 @@
  * generalised across eleven color spaces.
  */
 
-import type { Color, Oklch } from 'culori'
+import type { Oklch } from 'culori'
 import { fromChannelValues, toSpace } from './convert'
 import { deltaEOK, mapToGamut } from './gamut'
 import { getSpace } from './spaces'
@@ -18,6 +18,7 @@ import type {
   GeneratorConstraints,
   Range,
   SpaceId,
+  ColorInput,
 } from './types'
 
 /* ------------------------------------------------------------------ *
@@ -243,7 +244,7 @@ export interface GenerateOptions {
   count: number
   constraints: GeneratorConstraints
   /** Colors already in the palette that new colors must stay distinct from. */
-  avoid?: Color[]
+  avoid?: ColorInput[]
   /** Overrides `constraints.seed`. */
   seed?: number
 }
@@ -344,7 +345,7 @@ export function previewSwatches(
  * by `padding` (as a fraction of the channel width).
  */
 export function constraintsFromColors(
-  colors: Color[],
+  colors: ColorInput[],
   space: SpaceId = 'oklch',
   padding = 0.05,
 ): GeneratorConstraints {

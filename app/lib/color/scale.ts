@@ -11,11 +11,11 @@
  *   • `hybrid`    — even steps, then nudged until they clear their targets.
  */
 
-import type { Color, Oklch } from 'culori'
+import type { Oklch } from 'culori'
 import { toOklch } from './convert'
 import { score, type ContrastMetric } from './contrast'
 import { mapToGamut, maxChroma } from './gamut'
-import type { GamutStrategy } from './types'
+import type { GamutStrategy, ColorInput } from './types'
 
 export type ScalePreset = 'tailwind' | 'radix' | 'material' | 'custom'
 export type ScaleMode = 'lightness' | 'contrast' | 'hybrid'
@@ -51,7 +51,7 @@ export interface ScaleOptions {
   /** Bend the lightness distribution: <1 favours light steps, >1 dark steps. */
   curve: number
   /** Surface the contrast targets are measured against. */
-  background: Color
+  background: ColorInput
   metric: ContrastMetric
   /** Target contrast per step, used by `contrast` and `hybrid`. */
   targets: number[] | null
@@ -185,7 +185,7 @@ function lightnessForContrast(
 }
 
 /** Generate a full tonal scale from a seed color. */
-export function generateScale(seed: Color, options: Partial<ScaleOptions> = {}): ScaleStop[] {
+export function generateScale(seed: ColorInput, options: Partial<ScaleOptions> = {}): ScaleStop[] {
   const opts = { ...DEFAULT_SCALE_OPTIONS, ...options }
   const base = toOklch(seed) as Oklch
   const hue = base.h ?? 0
@@ -254,7 +254,7 @@ export function generateScale(seed: Color, options: Partial<ScaleOptions> = {}):
  * every serious design system does and almost no generator offers.
  */
 export function generateNeutralScale(
-  seed: Color,
+  seed: ColorInput,
   tint = 0.012,
   options: Partial<ScaleOptions> = {},
 ): ScaleStop[] {

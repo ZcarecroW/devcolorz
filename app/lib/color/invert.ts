@@ -8,11 +8,11 @@
  * exposes them all so the choice is the user's rather than ours.
  */
 
-import type { Color, Oklch } from 'culori'
+import type { Oklch } from 'culori'
 import { toHsl, toOklch } from './convert'
 import { apca, score, wcag, type ContrastMetric } from './contrast'
 import { mapToGamut, maxChroma } from './gamut'
-import type { GamutStrategy } from './types'
+import type { GamutStrategy, ColorInput } from './types'
 
 export type InvertStrategy =
   | 'hsl-flip'
@@ -45,8 +45,8 @@ export interface InvertOptions {
    */
   accentBoost: number
   /** The background each mode composites against, used by contrast-preserve. */
-  lightBackground: Color
-  darkBackground: Color
+  lightBackground: ColorInput
+  darkBackground: ColorInput
   metric: ContrastMetric
   gamut: GamutStrategy
 }
@@ -157,7 +157,7 @@ function contrastPreserveLightness(
 }
 
 /** Derive the dark-mode counterpart of a light-mode color. */
-export function toDark(color: Color, options: Partial<InvertOptions> = {}): Oklch {
+export function toDark(color: ColorInput, options: Partial<InvertOptions> = {}): Oklch {
   const opts = { ...DEFAULT_INVERT_OPTIONS, ...options }
   const base = toOklch(color) as Oklch
   const fromL = base.l ?? 0.5
@@ -207,7 +207,7 @@ export function toDark(color: Color, options: Partial<InvertOptions> = {}): Oklc
 }
 
 /** The inverse trip, for palettes authored dark-first. */
-export function toLight(color: Color, options: Partial<InvertOptions> = {}): Oklch {
+export function toLight(color: ColorInput, options: Partial<InvertOptions> = {}): Oklch {
   const opts = { ...DEFAULT_INVERT_OPTIONS, ...options }
   const base = toOklch(color) as Oklch
   const fromL = base.l ?? 0.5
@@ -237,8 +237,8 @@ export interface InvertReport {
 }
 
 export function reportInversion(
-  light: Color,
-  dark: Color,
+  light: ColorInput,
+  dark: ColorInput,
   options: Partial<InvertOptions> = {},
 ): InvertReport {
   const opts = { ...DEFAULT_INVERT_OPTIONS, ...options }

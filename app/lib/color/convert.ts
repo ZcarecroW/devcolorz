@@ -19,21 +19,35 @@ import {
   type Rgb,
 } from 'culori'
 import { getSpace } from './spaces'
-import type { ColorFormat, SpaceId } from './types'
+import type { ColorFormat, ColorInput, SpaceId } from './types'
 
-export const toOklch = converter('oklch')
-export const toOklab = converter('oklab')
-export const toOkhsl = converter('okhsl')
-export const toOkhsv = converter('okhsv')
-export const toRgb = converter('rgb')
-export const toHsl = converter('hsl')
-export const toHsv = converter('hsv')
-export const toHwb = converter('hwb')
-export const toLch = converter('lch')
-export const toLab = converter('lab')
-export const toP3 = converter('p3')
+/**
+ * Typed converter wrappers.
+ *
+ * culori's `converter()` widens its return type to `T | undefined` as soon as
+ * a string is passed in, which would mean a non-null assertion at every one of
+ * the hundreds of call sites in this engine. These wrappers accept both forms
+ * and always return a color, because culori only returns undefined for input
+ * it cannot parse — and every caller here has already validated its input.
+ */
+function typedConverter<T extends Color>(mode: Parameters<typeof converter>[0]) {
+  const fn = converter(mode as never)
+  return (color: ColorInput): T => fn(color as Color) as unknown as T
+}
 
-const CONVERTERS: Record<SpaceId, (c: Color | string) => Color> = {
+export const toOklch = typedConverter<Oklch>('oklch')
+export const toOklab = typedConverter<Oklab>('oklab')
+export const toOkhsl = typedConverter<Color>('okhsl')
+export const toOkhsv = typedConverter<Color>('okhsv')
+export const toRgb = typedConverter<Rgb>('rgb')
+export const toHsl = typedConverter<Hsl>('hsl')
+export const toHsv = typedConverter<Color>('hsv')
+export const toHwb = typedConverter<Color>('hwb')
+export const toLch = typedConverter<Lch>('lch')
+export const toLab = typedConverter<Lab>('lab')
+export const toP3 = typedConverter<Rgb>('p3')
+
+const CONVERTERS: Record<SpaceId, (c: ColorInput) => Color> = {
   oklch: toOklch as never,
   oklab: toOklab as never,
   okhsl: toOkhsl as never,
@@ -48,12 +62,12 @@ const CONVERTERS: Record<SpaceId, (c: Color | string) => Color> = {
 }
 
 /** Convert any color into the given space, preserving alpha. */
-export function toSpace(color: Color | string, space: SpaceId): Color {
+export function toSpace(color: ColorInput, space: SpaceId): Color {
   return CONVERTERS[space](color)
 }
 
 /** Round-trip a color in an arbitrary space back to the canonical OKLCH. */
-export function fromSpace(color: Color): Oklch {
+export function fromSpace(color: ColorInput): Oklch {
   return toOklch(color) as Oklch
 }
 
@@ -103,12 +117,12 @@ function alphaSuffix(alpha: number | undefined, modern: boolean): string {
  * `precision` controls decimals on float channels; integers stay integers.
  * Hex output silently gamut-clips, because hex cannot express anything else.
  */
-export function formatColor(color: Color, format: ColorFormat, precision = 3): string {
+export function formatColor(color: ColorInput, format: ColorFormat, precision = 3): string {
   switch (format) {
     case 'hex':
       return (formatHex(color) ?? '#000000').toLowerCase()
     case 'hexa': {
-      const a = color.alpha
+      const a = toRgb(color).alpha
       if (a === undefined || a >= 1) return (formatHex(color) ?? '#000000').toLowerCase()
       return (formatHex8(color) ?? '#00000000').toLowerCase()
     }
@@ -164,17 +178,17 @@ export function formatColor(color: Color, format: ColorFormat, precision = 3): s
 }
 
 /** Always-safe CSS string for painting swatches in the DOM. */
-export function css(color: Color): string {
+export function css(color: ColorInput): string {
   return formatColor(color, 'oklch')
 }
 
 /** Hex without the `#`, uppercase — the notation palettes are usually shared in. */
-export function hexToken(color: Color): string {
+export function hexToken(color: ColorInput): string {
   return (formatHex(color) ?? '#000000').slice(1).toUpperCase()
 }
 
 /** Read the channel values of a color as it appears in the given space. */
-export function channelValues(color: Color, space: SpaceId): Record<string, number> {
+export function channelValues(color: ColorInput, space: SpaceId): Record<string, number> {
   const converted = toSpace(color, space) as unknown as Record<string, number | undefined>
   const out: Record<string, number> = {}
   for (const ch of getSpace(space).channels) {

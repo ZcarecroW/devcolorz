@@ -6,22 +6,22 @@
  * dark backgrounds and for thin type, so both are shown side by side.
  */
 
-import { wcagContrast, wcagLuminance, type Color } from 'culori'
+import { wcagContrast, wcagLuminance } from 'culori'
 import { toOklch, toRgb } from './convert'
 import { maxChroma } from './gamut'
-import type { Oklch, Rgb } from './types'
+import type { Oklch, Rgb, ColorInput } from './types'
 
 /* ------------------------------------------------------------------ *
  * WCAG 2.x
  * ------------------------------------------------------------------ */
 
 /** Relative luminance, per WCAG 2.x. */
-export function luminance(color: Color): number {
+export function luminance(color: ColorInput): number {
   return wcagLuminance(color)
 }
 
 /** WCAG contrast ratio, 1 to 21. Order of arguments does not matter. */
-export function wcag(a: Color, b: Color): number {
+export function wcag(a: ColorInput, b: ColorInput): number {
   return wcagContrast(a, b)
 }
 
@@ -68,7 +68,7 @@ const APCA = {
   loClip: 0.1,
 } as const
 
-function apcaY(color: Color): number {
+function apcaY(color: ColorInput): number {
   const c = toRgb(color) as Rgb
   const ch = (v: number) => Math.pow(Math.min(1, Math.max(0, v)), APCA.mainTRC)
   return ch(c.r) * APCA.sRco + ch(c.g) * APCA.sGco + ch(c.b) * APCA.sBco
@@ -85,7 +85,7 @@ function softClamp(y: number): number {
  * text on dark. The sign carries meaning — unlike WCAG, APCA is directional,
  * because the eye does not treat the two polarities the same way.
  */
-export function apca(text: Color, background: Color): number {
+export function apca(text: ColorInput, background: ColorInput): number {
   const ytxt = softClamp(apcaY(text))
   const ybg = softClamp(apcaY(background))
   if (Math.abs(ybg - ytxt) < APCA.deltaYmin) return 0
@@ -120,7 +120,7 @@ export function apcaVerdict(lc: number): { label: string; use: string; ok: boole
 export type ContrastMetric = 'wcag' | 'apca'
 
 /** Score a pair with the chosen metric, normalised so bigger is always better. */
-export function score(text: Color, background: Color, metric: ContrastMetric): number {
+export function score(text: ColorInput, background: ColorInput, metric: ContrastMetric): number {
   return metric === 'apca' ? Math.abs(apca(text, background)) : wcag(text, background)
 }
 
@@ -129,7 +129,7 @@ export function score(text: Color, background: Color, metric: ContrastMetric): n
  * The workhorse behind every preview: it is what keeps generated mockups
  * legible no matter what palette the user throws at them.
  */
-export function bestBlackOrWhite(background: Color, metric: ContrastMetric = 'apca'): Oklch {
+export function bestBlackOrWhite(background: ColorInput, metric: ContrastMetric = 'apca'): Oklch {
   const white: Oklch = { mode: 'oklch', l: 1, c: 0, h: 0 }
   const black: Oklch = { mode: 'oklch', l: 0, c: 0, h: 0 }
   return score(white, background, metric) >= score(black, background, metric) ? white : black
@@ -137,11 +137,11 @@ export function bestBlackOrWhite(background: Color, metric: ContrastMetric = 'ap
 
 /** Pick the most readable candidate from a list, for a given background. */
 export function bestForeground(
-  background: Color,
-  candidates: Color[],
+  background: ColorInput,
+  candidates: ColorInput[],
   metric: ContrastMetric = 'apca',
 ): Oklch | null {
-  let best: Color | null = null
+  let best: ColorInput | null = null
   let bestScore = -Infinity
   for (const candidate of candidates) {
     const s = score(candidate, background, metric)
@@ -170,8 +170,8 @@ export interface ReadableOptions {
  * Returns `null` if no lightness along the hue reaches the target.
  */
 export function makeReadable(
-  color: Color,
-  background: Color,
+  color: ColorInput,
+  background: ColorInput,
   options: ReadableOptions = {},
 ): Oklch | null {
   const metric = options.metric ?? 'apca'
@@ -212,7 +212,7 @@ export function makeReadable(
 }
 
 /** Every pairwise contrast in a palette — the data behind the contrast matrix. */
-export function contrastMatrix(colors: Color[], metric: ContrastMetric = 'wcag'): number[][] {
+export function contrastMatrix(colors: ColorInput[], metric: ContrastMetric = 'wcag'): number[][] {
   return colors.map((a) => colors.map((b) => (metric === 'apca' ? apca(a, b) : wcag(a, b))))
 }
 

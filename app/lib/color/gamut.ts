@@ -6,15 +6,15 @@
  * silently clipping like most tools do.
  */
 
-import { clampChroma, converter, type Color, type Oklch, type Rgb } from 'culori'
+import { clampChroma, converter, type Oklch, type Rgb } from 'culori'
 import { toOklch, toRgb } from './convert'
-import type { GamutStrategy } from './types'
+import type { GamutStrategy, ColorInput } from './types'
 
 const toOklab = converter('oklab')
 
 export type GamutId = 'srgb' | 'p3' | 'rec2020'
 
-const CONVERTERS: Record<GamutId, (c: Color) => Rgb> = {
+const CONVERTERS: Record<GamutId, (c: ColorInput) => Rgb> = {
   srgb: converter('rgb') as never,
   p3: converter('p3') as never,
   rec2020: converter('rec2020') as never,
@@ -33,7 +33,7 @@ const CONVERTERS: Record<GamutId, (c: Color) => Rgb> = {
 const GAMUT_EPSILON = 1e-6
 
 /** Is this color displayable in the given gamut? */
-export function isInGamut(color: Color, gamut: GamutId = 'srgb'): boolean {
+export function isInGamut(color: ColorInput, gamut: GamutId = 'srgb'): boolean {
   const c = CONVERTERS[gamut](color)
   return (
     c.r >= -GAMUT_EPSILON &&
@@ -46,7 +46,7 @@ export function isInGamut(color: Color, gamut: GamutId = 'srgb'): boolean {
 }
 
 /** Naive per-channel clip. Fast, and reliably shifts hue and lightness. */
-export function clipToGamut(color: Color): Oklch {
+export function clipToGamut(color: ColorInput): Oklch {
   const rgb = toRgb(color) as Rgb
   const clamped: Rgb = {
     mode: 'rgb',
@@ -59,12 +59,12 @@ export function clipToGamut(color: Color): Oklch {
 }
 
 /** Reduce chroma until the color fits, keeping lightness and hue exactly. */
-export function reduceChroma(color: Color): Oklch {
+export function reduceChroma(color: ColorInput): Oklch {
   return toOklch(clampChroma(toOklch(color) as Oklch, 'oklch', 'rgb')) as Oklch
 }
 
 /** Perceptual distance between two colors in OKLab, as ΔEOK. */
-export function deltaEOK(a: Color, b: Color): number {
+export function deltaEOK(a: ColorInput, b: ColorInput): number {
   const x = toOklab(a) as { l: number; a: number; b: number }
   const y = toOklab(b) as { l: number; a: number; b: number }
   const dl = x.l - y.l
@@ -81,7 +81,7 @@ export function deltaEOK(a: Color, b: Color): number {
  *
  * https://www.w3.org/TR/css-color-4/#css-gamut-mapping
  */
-export function cssGamutMap(color: Color, gamut: GamutId = 'srgb'): Oklch {
+export function cssGamutMap(color: ColorInput, gamut: GamutId = 'srgb'): Oklch {
   const origin = toOklch(color) as Oklch
   const l = origin.l ?? 0
   if (l >= 1) return { mode: 'oklch', l: 1, c: 0, h: origin.h ?? 0, ...(origin.alpha !== undefined ? { alpha: origin.alpha } : {}) }
@@ -117,7 +117,7 @@ export function cssGamutMap(color: Color, gamut: GamutId = 'srgb'): Oklch {
 }
 
 /** Apply the user's chosen strategy. */
-export function mapToGamut(color: Color, strategy: GamutStrategy, gamut: GamutId = 'srgb'): Oklch {
+export function mapToGamut(color: ColorInput, strategy: GamutStrategy, gamut: GamutId = 'srgb'): Oklch {
   switch (strategy) {
     case 'keep':
       return toOklch(color) as Oklch

@@ -15,7 +15,8 @@
  * came from the palette and which we invented.
  */
 
-import type { Color, Oklch } from 'culori'
+import type { Oklch } from 'culori'
+import type { ColorInput } from './types'
 import { toOklch } from './convert'
 import { apca, bestBlackOrWhite, makeReadable, score, type ContrastMetric } from './contrast'
 import { deltaEOK, mapToGamut, maxChroma } from './gamut'
@@ -82,9 +83,9 @@ export const DEFAULT_ROLE_OPTIONS: RoleOptions = {
   chartCount: 6,
 }
 
-const lightnessOf = (c: Color) => toOklch(c).l ?? 0
-const chromaOf = (c: Color) => toOklch(c).c ?? 0
-const hueOf = (c: Color) => toOklch(c).h ?? 0
+const lightnessOf = (c: ColorInput) => toOklch(c).l ?? 0
+const chromaOf = (c: ColorInput) => toOklch(c).c ?? 0
+const hueOf = (c: ColorInput) => toOklch(c).h ?? 0
 
 /** Smallest angle between two hues, 0–180. */
 function hueDistance(a: number, b: number): number {
@@ -93,7 +94,7 @@ function hueDistance(a: number, b: number): number {
 }
 
 /** Nudge a color's lightness by `delta`, keeping hue and re-fitting chroma. */
-function shiftLightness(color: Color, delta: number): Oklch {
+function shiftLightness(color: ColorInput, delta: number): Oklch {
   const base = toOklch(color) as Oklch
   const l = Math.min(1, Math.max(0, (base.l ?? 0.5) + delta))
   const hue = base.h ?? 0
@@ -101,7 +102,7 @@ function shiftLightness(color: Color, delta: number): Oklch {
 }
 
 /** Mix two colors in OKLab by `amount` (0 = a, 1 = b). */
-export function mix(a: Color, b: Color, amount: number): Oklch {
+export function mix(a: ColorInput, b: ColorInput, amount: number): Oklch {
   const x = toOklch(a) as Oklch
   const y = toOklch(b) as Oklch
   const hx = x.h ?? 0
@@ -125,7 +126,7 @@ const derivedValue = (color: Oklch): RoleValue => ({ color, source: -1, derived:
  * The order matters: background is decided first because every other decision
  * is a contrast decision, and contrast is meaningless without a background.
  */
-export function assignRoles(palette: Color[], options: Partial<RoleOptions> = {}): RoleMap {
+export function assignRoles(palette: ColorInput[], options: Partial<RoleOptions> = {}): RoleMap {
   const opts = { ...DEFAULT_ROLE_OPTIONS, ...options }
   const colors = (palette.length ? palette : ['#111111', '#f5f5f5']).map((c) => toOklch(c) as Oklch)
   const indexed = colors.map((color, index) => ({ color, index }))
@@ -424,7 +425,7 @@ export function assignRoles(palette: Color[], options: Partial<RoleOptions> = {}
 }
 
 /** Turn a role map into the CSS custom properties a preview component consumes. */
-export function rolesToCssVars(roles: RoleMap, format: (c: Color) => string): Record<string, string> {
+export function rolesToCssVars(roles: RoleMap, format: (c: ColorInput) => string): Record<string, string> {
   const vars: Record<string, string> = {}
   for (const [key, entry] of Object.entries(roles)) {
     if (key === 'chart' || key === 'ramp' || key === 'scheme') continue

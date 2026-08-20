@@ -12,7 +12,8 @@
  * almost nothing to do with which colors look alike.
  */
 
-import type { Color, Oklch } from 'culori'
+import type { Oklch } from 'culori'
+import type { ColorInput } from './types'
 import { toOklab, toOklch } from './convert'
 import { deltaEOK } from './gamut'
 
@@ -79,7 +80,7 @@ function chromaWord(c: number, l: number): string {
  * A structural description of a color, always available and never wrong:
  * "Vivid dark azure", "Near-white grey".
  */
-export function describeColor(color: Color): string {
+export function describeColor(color: ColorInput): string {
   const c = toOklch(color) as Oklch
   const l = c.l ?? 0
   const chroma = c.c ?? 0
@@ -94,7 +95,7 @@ export function describeColor(color: Color): string {
 }
 
 /** Just the hue family — used for grouping and for export variable names. */
-export function familyOf(color: Color): string {
+export function familyOf(color: ColorInput): string {
   const c = toOklch(color) as Oklch
   if ((c.c ?? 0) < 0.012) return 'Grey'
   return hueFamily(c.h ?? 0)
@@ -147,7 +148,7 @@ export interface NamedColor {
 }
 
 /** The closest curated name to a color, matched perceptually. */
-export async function nearestName(color: Color): Promise<NamedColor> {
+export async function nearestName(color: ColorInput): Promise<NamedColor> {
   const { names, lab } = await loadNameIndex()
   const target = toOklab(color) as { l: number; a: number; b: number }
   let best = 0
@@ -166,7 +167,7 @@ export async function nearestName(color: Color): Promise<NamedColor> {
 }
 
 /** The n closest names, for the "rename" picker. */
-export async function nearestNames(color: Color, n = 8): Promise<NamedColor[]> {
+export async function nearestNames(color: ColorInput, n = 8): Promise<NamedColor[]> {
   const { names, lab } = await loadNameIndex()
   const target = toOklab(color) as { l: number; a: number; b: number }
   const scored: NamedColor[] = []
@@ -232,6 +233,6 @@ export function uniqueSlugs(labels: string[]): string[] {
 }
 
 /** Perceptual distance in the same ΔEOK×100 units used across the app. */
-export function distance(a: Color, b: Color): number {
+export function distance(a: ColorInput, b: ColorInput): number {
   return deltaEOK(a, b) * 100
 }
