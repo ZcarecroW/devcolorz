@@ -21,8 +21,22 @@ Options -Indexes
     </IfModule>
 </FilesMatch>
 
+# The include-only directories.
+#
+# Each already carries its own `Require all denied`, but this host does not
+# honour those in subdirectories — requesting api/lib/Db.php returned 200 with
+# an empty body, which is harmless in itself and still confirms the file
+# exists and invites probing for one that fatals. RedirectMatch is verified to
+# work here, so it is what actually enforces this.
 <IfModule mod_alias.c>
     RedirectMatch 404 ^/storage(/|$)
+    RedirectMatch 404 ^/api/(lib|routes)(/|$)
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^storage/ - [R=404,L]
+    RewriteRule ^api/(lib|routes)/ - [R=404,L]
 </IfModule>
 
 # ---------------------------------------------------------------------------
