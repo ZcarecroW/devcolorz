@@ -193,7 +193,12 @@ void router
 
       <!-- Palette -->
       <section class="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        <SwatchStrip :format="studio.format" :cvd="studio.cvd" @adjust="openAdjust" />
+        <SwatchStrip
+          :format="studio.format"
+          :cvd="studio.cvd"
+          :view="studio.paletteView"
+          @adjust="openAdjust"
+        />
 
         <!-- Panel handles, pinned to the strip's edges. -->
         <Button

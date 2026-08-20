@@ -11,6 +11,7 @@ import { defineStore } from 'pinia'
 import type { ColorFormat } from '@/lib/color/types'
 import type { CvdType } from '@/lib/color/cvd'
 import type { ContrastMetric } from '@/lib/color/contrast'
+import type { PaletteView } from '@/lib/palette/layout'
 
 export type PanelId = 'generate' | 'harmony' | 'scales' | 'image' | 'a11y' | 'export'
 
@@ -38,6 +39,7 @@ interface Persisted {
   previewDensity: 'single' | 'grid'
   showContrastBadges: boolean
   cvd: CvdType
+  paletteView: PaletteView
 }
 
 const DEFAULTS: Persisted = {
@@ -51,6 +53,7 @@ const DEFAULTS: Persisted = {
   previewDensity: 'single',
   showContrastBadges: false,
   cvd: 'none',
+  paletteView: 'columns',
 }
 
 function load(): Persisted {
@@ -84,6 +87,9 @@ export const useStudioStore = defineStore('studio', () => {
    */
   const cvd = ref<CvdType>(saved.cvd)
 
+  /** How the palette itself is laid out. See @/lib/palette/layout. */
+  const paletteView = ref<PaletteView>(saved.paletteView)
+
   /** The keyboard-shortcut cheat sheet. */
   const shortcutsOpen = ref(false)
   /** The ⌘K command palette. */
@@ -101,6 +107,7 @@ export const useStudioStore = defineStore('studio', () => {
       previewDensity,
       showContrastBadges,
       cvd,
+      paletteView,
     ],
     () => {
       try {
@@ -117,6 +124,7 @@ export const useStudioStore = defineStore('studio', () => {
             previewDensity: previewDensity.value,
             showContrastBadges: showContrastBadges.value,
             cvd: cvd.value,
+            paletteView: paletteView.value,
           } satisfies Persisted),
         )
       } catch {
@@ -141,6 +149,7 @@ export const useStudioStore = defineStore('studio', () => {
     previewDensity,
     showContrastBadges,
     cvd,
+    paletteView,
     shortcutsOpen,
     commandOpen,
     openPanel,

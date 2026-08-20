@@ -33,6 +33,11 @@ const props = defineProps<{
   canRemove: boolean
   /** Vertical layout on narrow viewports, horizontal columns otherwise. */
   stacked: boolean
+  /**
+   * Which shape this cell is being asked to take. All four render the same
+   * controls; only the alignment and the label treatment differ.
+   */
+  layout?: 'column' | 'tile' | 'row' | 'card'
   dragging: boolean
 }>()
 
@@ -48,6 +53,64 @@ const emit = defineEmits<{
   dragEnd: []
   move: [delta: number]
 }>()
+
+const layout = computed(() => props.layout ?? 'column')
+
+/**
+ * How the cell arranges itself.
+ *
+ * A column is tall and thin so its label sits at the bottom; a tile is roughly
+ * square so the label centres; a row is wide and short so the label runs along
+ * it. Only the column is ever narrow enough to need the rotated label, which is
+ * why the container-query rules are scoped to it.
+ */
+const shellClass = computed(() => {
+  switch (layout.value) {
+    case 'tile':
+      return 'min-h-0 min-w-0 flex-col justify-center'
+    case 'row':
+      return 'min-h-0 min-w-0 flex-1 flex-row items-center justify-between'
+    case 'card':
+      return 'min-h-0 min-w-0 flex-col justify-end rounded-lg'
+    default:
+      return 'min-h-0 min-w-0 flex-1 flex-col justify-end'
+  }
+})
+
+/** The rotated label is a column-only trick; a tile is never that narrow. */
+const narrowRules = computed(() =>
+  layout.value === 'column'
+    ? '@max-[6rem]/swatch:flex-1 @max-[6rem]/swatch:justify-end @max-[6rem]/swatch:p-1 @max-[6rem]/swatch:pb-3 @max-[6rem]/swatch:[writing-mode:vertical-rl] @max-[6rem]/swatch:rotate-180'
+    : '',
+)
+
+/** The value is full-width in a tall cell and intrinsic in a wide one. */
+const valueClass = computed(() =>
+  layout.value === 'row' ? 'w-auto shrink-0' : 'w-full',
+)
+
+/** In a row the name gets the leftover width; elsewhere it sits under the value. */
+const nameClass = computed(() =>
+  layout.value === 'row' ? 'min-w-0 flex-1 text-left' : 'max-w-full',
+)
+
+const labelClass = computed(() => {
+  switch (layout.value) {
+    case 'row':
+      // The first row starts clear of the panel-collapse button, which is
+      // overlaid on the strip's top-left corner and would otherwise sit on top
+      // of the hex value.
+      return props.index === 0
+        ? 'flex-row items-center gap-3 py-2 pr-28 pl-12'
+        : 'flex-row items-center gap-3 py-2 pr-28 pl-4'
+    case 'tile':
+      return 'items-center gap-0.5 p-2 text-center'
+    case 'card':
+      return 'items-center gap-1 p-2 pb-3 text-center'
+    default:
+      return 'items-center gap-1 p-3 pb-6 text-center sm:pb-8'
+  }
+})
 
 const copied = ref(false)
 const curatedName = ref('')
@@ -120,12 +183,14 @@ function onKeydown(event: KeyboardEvent) {
 
 <template>
   <div
-    class="group/swatch @container/swatch relative flex min-h-0 min-w-0 flex-1 flex-col justify-end overflow-hidden transition-[flex-grow] duration-300 ease-out"
+    class="group/swatch @container/swatch relative flex overflow-hidden transition-[flex-grow] duration-300 ease-out"
     :class="[
+      shellClass,
       dragging && 'opacity-40',
       swatch.locked && 'ring-inset ring-2 ring-[color:var(--swatch-ink)]/35',
     ]"
     :style="{ background, color: textColor, '--swatch-ink': textColor }"
+    :data-layout="layout"
     :data-swatch-id="swatch.id"
     :aria-label="`Color ${index + 1} of ${total}: ${label}, ${display}`"
     role="group"
@@ -146,8 +211,13 @@ function onKeydown(event: KeyboardEvent) {
       needs to.
     -->
     <div
-      class="absolute inset-x-0 top-0 flex items-start justify-between gap-1 p-2 opacity-0 transition-opacity duration-200 group-focus-within/swatch:opacity-100 group-hover/swatch:opacity-100 @max-[9rem]/swatch:flex-col @max-[9rem]/swatch:items-center @max-[9rem]/swatch:p-1"
-      :class="swatch.locked && 'opacity-100'"
+      class="absolute flex gap-1 opacity-0 transition-opacity duration-200 group-focus-within/swatch:opacity-100 group-hover/swatch:opacity-100"
+      :class="[
+        layout === 'row'
+          ? 'inset-y-0 right-0 items-center justify-end p-2'
+          : 'inset-x-0 top-0 items-start justify-between p-2 @max-[9rem]/swatch:flex-col @max-[9rem]/swatch:items-center @max-[9rem]/swatch:p-1',
+        swatch.locked && 'opacity-100',
+      ]"
     >
       <button
         type="button"
@@ -219,13 +289,11 @@ function onKeydown(event: KeyboardEvent) {
       the block turns on its side and reads bottom-to-top, which is what a
       narrow column has plenty of.
     -->
-    <div
-      class="flex flex-col items-center gap-1 p-3 pb-6 text-center sm:pb-8 @max-[6rem]/swatch:flex-1 @max-[6rem]/swatch:justify-end @max-[6rem]/swatch:p-1 @max-[6rem]/swatch:pb-3 @max-[6rem]/swatch:[writing-mode:vertical-rl] @max-[6rem]/swatch:rotate-180"
-    >
+    <div class="flex flex-col" :class="[labelClass, narrowRules]">
       <button
         type="button"
-        class="flex w-full max-w-full items-center justify-center gap-1.5 rounded-md px-2 py-1 font-mono text-sm font-semibold tracking-wide tabular-nums transition hover:bg-current/12 @max-[6rem]/swatch:w-auto @max-[6rem]/swatch:px-1 @max-[6rem]/swatch:py-2 @max-[6rem]/swatch:text-xs"
-        :class="display.length > 22 ? 'text-[11px] sm:text-xs' : 'text-sm sm:text-base'"
+        class="flex max-w-full items-center justify-center gap-1.5 rounded-md px-2 py-1 font-mono text-sm font-semibold tracking-wide tabular-nums transition hover:bg-current/12 @max-[6rem]/swatch:w-auto @max-[6rem]/swatch:px-1 @max-[6rem]/swatch:py-2 @max-[6rem]/swatch:text-xs"
+        :class="[valueClass, display.length > 22 ? 'text-[11px] sm:text-xs' : 'text-sm sm:text-base']"
         :style="{ opacity: chromeContrast > 45 ? 1 : 0.9 }"
         :aria-label="`Copy ${display}`"
         :title="display"
@@ -247,7 +315,8 @@ function onKeydown(event: KeyboardEvent) {
       <input
         v-if="editing"
         v-model="draftName"
-        class="w-full max-w-[18ch] rounded border border-current/30 bg-current/10 px-1.5 py-0.5 text-center text-xs outline-none"
+        class="w-full rounded border border-current/30 bg-current/10 px-1.5 py-0.5 text-xs outline-none"
+        :class="layout === 'row' ? 'max-w-[24ch] text-left' : 'max-w-[18ch] text-center'"
         :placeholder="fallbackName"
         autofocus
         @blur="commitRename"
@@ -257,7 +326,8 @@ function onKeydown(event: KeyboardEvent) {
       <button
         v-else
         type="button"
-        class="max-w-full truncate rounded px-1.5 py-0.5 text-xs opacity-70 transition hover:bg-current/12 hover:opacity-100 @max-[4.5rem]/swatch:hidden"
+        class="truncate rounded px-1.5 py-0.5 text-xs opacity-70 transition hover:bg-current/12 hover:opacity-100 @max-[4.5rem]/swatch:hidden"
+        :class="nameClass"
         title="Click to rename"
         @click="startRename"
       >

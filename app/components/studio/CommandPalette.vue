@@ -20,6 +20,7 @@ import {
   CommandShortcut,
 } from '@/components/ui/command'
 import { PREVIEW_TEMPLATES } from '@/components/preview/registry'
+import { PALETTE_VIEWS } from '@/lib/palette/layout'
 import { CVD_IDS, CVD_TYPES } from '@/lib/color/cvd'
 import { HARMONY_HINTS, HARMONY_IDS, HARMONY_LABELS } from '@/lib/color/harmony'
 import { EMITTERS } from '@/lib/export/emitters'
@@ -153,6 +154,12 @@ const groups: CommandGroupDef[] = [
         keys: 'D',
         run: () => theme.toggleAppearance(),
       },
+      ...PALETTE_VIEWS.map((view) => ({
+        id: `view-layout-${view.id}`,
+        label: `Layout: ${view.label}`,
+        hint: view.hint.split('. ')[0] + '.',
+        run: () => (studio.paletteView = view.id),
+      })),
       ...PREVIEW_TEMPLATES.map((template) => ({
         id: `view-template-${template.id}`,
         label: `Preview: ${template.label}`,

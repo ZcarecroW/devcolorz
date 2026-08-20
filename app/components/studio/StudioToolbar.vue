@@ -10,7 +10,11 @@
 import { computed } from 'vue'
 import {
   ArrowUpDown,
+  Columns3,
   Eye,
+  LayoutGrid,
+  Rows3,
+  SquareStack,
   Link2,
   Minus,
   Plus,
@@ -40,6 +44,7 @@ import {
 } from '@/components/ui/select'
 import { FORMAT_HINTS, FORMAT_LABELS } from '@/lib/color/convert'
 import { CVD_IDS, CVD_TYPES, type CvdType } from '@/lib/color/cvd'
+import { PALETTE_VIEWS, VIEW_BY_ID, type PaletteView } from '@/lib/palette/layout'
 import { MAX_SWATCHES, MIN_SWATCHES, usePaletteStore, type SortKey } from '@/stores/palette'
 import { useStudioStore } from '@/stores/studio'
 import type { ColorFormat } from '@/lib/color/types'
@@ -70,6 +75,14 @@ const redoLabel = computed(() => {
   const entry = palette.future[0]
   return entry ? `Redo ${entry.label.toLowerCase()}` : 'Nothing to redo'
 })
+
+/** The four palette layouts, with the icon that reads as each shape. */
+const VIEW_ICONS: Record<PaletteView, typeof Columns3> = {
+  columns: Columns3,
+  boxes: LayoutGrid,
+  rows: Rows3,
+  cards: SquareStack,
+}
 
 const simulating = computed(() => studio.cvd !== 'none')
 const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
@@ -179,6 +192,38 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
           </SelectContent>
         </Select>
         <InfoHint title="Notation" wide :text="FORMAT_HINTS[studio.format]" />
+      </div>
+
+      <!-- Layout -->
+      <div class="flex items-center gap-1">
+        <div
+          class="flex items-center rounded-md border bg-background p-0.5"
+          role="group"
+          aria-label="Palette layout"
+        >
+          <button
+            v-for="view in PALETTE_VIEWS"
+            :key="view.id"
+            type="button"
+            class="flex items-center gap-1.5 rounded-sm px-2 py-1 text-xs transition-colors"
+            :class="
+              studio.paletteView === view.id
+                ? 'bg-accent text-accent-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            "
+            :aria-pressed="studio.paletteView === view.id"
+            :title="view.hint"
+            @click="studio.paletteView = view.id"
+          >
+            <component :is="VIEW_ICONS[view.id]" class="size-3.5" />
+            <span class="hidden xl:inline">{{ view.label }}</span>
+          </button>
+        </div>
+        <InfoHint
+          title="Palette layout"
+          wide
+          :text="VIEW_BY_ID[studio.paletteView].hint"
+        />
       </div>
 
       <!-- Order -->
