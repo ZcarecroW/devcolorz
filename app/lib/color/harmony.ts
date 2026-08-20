@@ -81,7 +81,12 @@ const RYB_ANCHORS: Array<[ryb: number, real: number]> = [
 ]
 
 function interpolateAnchors(value: number, from: 0 | 1, to: 0 | 1): number {
-  const v = ((value % 360) + 360) % 360
+  let v = ((value % 360) + 360) % 360
+  // The real-hue column starts at 29° (where red actually sits in OKLCH) and
+  // runs past 360 to 389. Anything below the first anchor belongs to the final
+  // wrapping segment, so lift it by a full turn before searching.
+  const first = RYB_ANCHORS[0][from]
+  if (v < first) v += 360
   for (let i = 0; i < RYB_ANCHORS.length - 1; i++) {
     const a = RYB_ANCHORS[i]
     const b = RYB_ANCHORS[i + 1]

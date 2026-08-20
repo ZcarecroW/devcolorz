@@ -12,7 +12,6 @@ import {
   parse as culoriParse,
   type Color,
   type Hsl,
-  type Hsv,
   type Lab,
   type Lch,
   type Oklab,
@@ -152,7 +151,7 @@ export function formatColor(color: Color, format: ColorFormat, precision = 3): s
       return `oklab(${n((c.l ?? 0) * 100, precision)}% ${n(c.a ?? 0, Math.max(precision, 4))} ${n(c.b ?? 0, Math.max(precision, 4))}${alphaSuffix(c.alpha, true)})`
     }
     case 'display-p3': {
-      const c = toP3(color) as Rgb
+      const c = toP3(color) as unknown as Rgb
       return `color(display-p3 ${n(c.r, precision)} ${n(c.g, precision)} ${n(c.b, precision)}${alphaSuffix(c.alpha, true)})`
     }
     case 'color-srgb': {

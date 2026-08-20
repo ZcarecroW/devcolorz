@@ -34,8 +34,10 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "@types/culori": "^4.0.1",
     "@types/node": "^26.2.0",
     "@vitejs/plugin-vue": "^6.0.8",
+    "color-name-list": "^14.47.0",
     "jsdom": "^30.0.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",

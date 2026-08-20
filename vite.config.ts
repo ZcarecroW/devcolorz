@@ -19,7 +19,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
-        manualChunks(id) {
+        manualChunks(id: string) {
           if (!id.includes('node_modules')) return
           if (id.includes('culori')) return 'color'
           if (id.includes('reka-ui')) return 'ui'

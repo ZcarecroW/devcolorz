@@ -6,25 +6,43 @@
  * silently clipping like most tools do.
  */
 
-import { clampChroma, converter, inGamut, type Color, type Oklch, type Rgb } from 'culori'
+import { clampChroma, converter, type Color, type Oklch, type Rgb } from 'culori'
 import { toOklch, toRgb } from './convert'
 import type { GamutStrategy } from './types'
 
-const inSrgb = inGamut('rgb')
-const inP3 = inGamut('p3')
 const toOklab = converter('oklab')
 
 export type GamutId = 'srgb' | 'p3' | 'rec2020'
 
-const CHECKERS: Record<GamutId, (c: Color) => boolean> = {
-  srgb: inSrgb as never,
-  p3: inP3 as never,
-  rec2020: inGamut('rec2020') as never,
+const CONVERTERS: Record<GamutId, (c: Color) => Rgb> = {
+  srgb: converter('rgb') as never,
+  p3: converter('p3') as never,
+  rec2020: converter('rec2020') as never,
 }
+
+/**
+ * Tolerance for the in-gamut test.
+ *
+ * culori's own `inGamut` compares channels against 0 and 1 exactly, so a
+ * colour that has been through an OKLCH round-trip — pure blue, say, which
+ * comes back as `b: 0.9999999999999999, r: -9.3e-15` — is reported as *out* of
+ * gamut. That is a floating-point artefact, not a real one, and letting it
+ * through causes endless pointless gamut mapping. 1e-6 is far below anything
+ * an 8-bit channel can represent.
+ */
+const GAMUT_EPSILON = 1e-6
 
 /** Is this color displayable in the given gamut? */
 export function isInGamut(color: Color, gamut: GamutId = 'srgb'): boolean {
-  return CHECKERS[gamut](color)
+  const c = CONVERTERS[gamut](color)
+  return (
+    c.r >= -GAMUT_EPSILON &&
+    c.r <= 1 + GAMUT_EPSILON &&
+    c.g >= -GAMUT_EPSILON &&
+    c.g <= 1 + GAMUT_EPSILON &&
+    c.b >= -GAMUT_EPSILON &&
+    c.b <= 1 + GAMUT_EPSILON
+  )
 }
 
 /** Naive per-channel clip. Fast, and reliably shifts hue and lightness. */
