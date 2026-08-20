@@ -105,7 +105,7 @@ const routes: RouteRecordRaw[] = [
 export const router = createRouter({
   history: createWebHashHistory(),
   routes,
-  scrollBehavior(to, from, saved) {
+  scrollBehavior(_to, _from, saved) {
     return saved ?? { top: 0 }
   },
 })

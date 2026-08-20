@@ -254,7 +254,6 @@ export const dtcgEmitter: Emitter = {
   language: 'json',
   hint: 'The W3C Design Tokens Community Group format, consumed by Style Dictionary, Tokens Studio and most token pipelines.',
   emit(graph) {
-    const { config } = graph
     const build = (mode: 'light' | 'dark') => {
       const group: Record<string, unknown> = {}
       for (const token of graph.tokens) {

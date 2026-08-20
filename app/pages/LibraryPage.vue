@@ -15,15 +15,16 @@ import { LayoutGrid, Plus, Search, Sparkles } from '@lucide/vue'
 import { refDebounced } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 import InfoHint from '@/components/common/InfoHint.vue'
-import PaletteCard, {
+import PaletteCard from '@/components/palette/PaletteCard.vue'
+import {
   docFromState,
   encodeForGenerator,
-} from '@/components/palette/PaletteCard.vue'
+} from '@/lib/palette/document'
 import type {
   PaletteListResponse,
   PaletteSummary,
   PaletteVisibility,
-} from '@/components/palette/PaletteCard.vue'
+} from '@/lib/palette/document'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -259,15 +260,9 @@ async function openInGenerator(item: PaletteSummary) {
               v-for="choice in sortChoices"
               :key="choice.value"
               :value="choice.value"
-              class="items-start"
-            >
-              <span class="flex flex-col gap-0.5 py-0.5">
-                <span class="text-xs font-medium">{{ choice.label }}</span>
-                <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                  {{ choice.hint }}
-                </span>
-              </span>
-            </SelectItem>
+              :label="choice.label"
+              :description="choice.hint"
+            />
           </SelectContent>
         </Select>
         <InfoHint title="Sort order" wide :text="sortHint" />

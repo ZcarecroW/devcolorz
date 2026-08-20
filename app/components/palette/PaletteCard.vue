@@ -1,178 +1,3 @@
-<script lang="ts">
-/**
- * The palette card used by the library grid, the explore grid and anywhere
- * else a saved palette needs a face — plus the API shapes those pages speak.
- *
- * The shapes live beside the card rather than in `@/lib/api` because the card
- * is the one component that has to agree with the server about what a palette
- * is; keeping the contract next to its only consumer means a server change
- * moves one file, not four. The card holds no request state: every action is
- * an event, so the page above owns optimism, errors and confirmation.
- */
-import { bestBlackOrWhite } from '@/lib/color/contrast'
-import { formatColor, parseColor } from '@/lib/color/convert'
-import type { Oklch } from '@/lib/color/types'
-import { encodeState } from '@/lib/palette/url'
-import type { PaletteState } from '@/lib/palette/url'
-
-export type PaletteVisibility = 'private' | 'unlisted' | 'public'
-
-/** One entry of the stored document. The server only ever reads `hex`. */
-export interface PaletteDocColor {
-  hex: string
-  name?: string
-  locked?: boolean
-}
-
-/**
- * The palette document.
- *
- * Opaque to the server, which derives a hex index from it but never interprets
- * it — that is what keeps the color engine in exactly one place.
- */
-export interface PaletteDoc {
-  version: number
-  colors: PaletteDocColor[]
-  seed?: number | null
-}
-
-export interface PaletteSummary {
-  uuid: string
-  slug: string
-  title: string
-  /** Hex strings, already prefixed with `#`. */
-  colors: string[]
-  colorCount: number
-  visibility: PaletteVisibility
-  likes: number
-  views: number
-  updatedAt: number
-  createdAt: number
-  owner?: { displayName: string }
-  /** Present when the endpoint returned the full document. */
-  doc?: PaletteDoc | null
-}
-
-export interface PaletteDetail extends PaletteSummary {
-  description: string
-  liked: boolean
-}
-
-export interface PaletteListResponse {
-  items: PaletteSummary[]
-  nextCursor: string | null
-}
-
-export const VISIBILITY_ORDER: PaletteVisibility[] = ['private', 'unlisted', 'public']
-
-export const VISIBILITY_LABELS: Record<PaletteVisibility, string> = {
-  private: 'Private',
-  unlisted: 'Unlisted',
-  public: 'Public',
-}
-
-/** One line each, shown inside the selector so the choice is never a guess. */
-export const VISIBILITY_HINTS: Record<PaletteVisibility, string> = {
-  private: 'Only you can open it, even with the link.',
-  unlisted: 'Anyone with the link can open it; it stays out of Explore and search.',
-  public: 'Listed in Explore, likeable, and indexable by search engines.',
-}
-
-/** Pack palette-store state into a document the server will accept. */
-export function docFromState(state: PaletteState): PaletteDoc {
-  return {
-    version: 1,
-    colors: state.colors.map((color, index) => ({
-      hex: formatColor(color, 'hex'),
-      name: state.names[index] ?? '',
-      locked: Boolean(state.locks[index]),
-    })),
-    seed: state.seed ?? null,
-  }
-}
-
-/**
- * Unpack a stored palette back into editor state.
- *
- * Prefers the document, which carries names and locks, and falls back to the
- * flat hex list the grid endpoints return — so "open in generator" works from
- * a card that never fetched the full record.
- */
-export function stateFromPalette(item: PaletteSummary): PaletteState | null {
-  const entries: PaletteDocColor[] = item.doc?.colors?.length
-    ? item.doc.colors
-    : item.colors.map((hex) => ({ hex }))
-
-  const colors: Oklch[] = []
-  const names: string[] = []
-  const locks: boolean[] = []
-  for (const entry of entries) {
-    const parsed = parseColor(entry.hex)
-    if (!parsed) continue
-    colors.push(parsed)
-    names.push(entry.name ?? '')
-    locks.push(Boolean(entry.locked))
-  }
-  if (!colors.length) return null
-  return { colors, locks, names, seed: item.doc?.seed ?? null }
-}
-
-/**
- * Encode a stored palette for the studio's `/p/:state` route.
- *
- * Opening a palette goes through the URL rather than through the store because
- * the studio re-initialises itself from the route on mount; handing it the
- * state directly would only get overwritten, and this way the address bar ends
- * up holding a share link for what is on screen.
- */
-export async function encodeForGenerator(item: PaletteSummary): Promise<string | null> {
-  const state = stateFromPalette(item)
-  return state ? encodeState(state) : null
-}
-
-/** A hex plus the black-or-white that stays legible on it. */
-export interface PaletteBand {
-  hex: string
-  css: string
-  text: string
-}
-
-export function bandsFor(hexes: string[]): PaletteBand[] {
-  const out: PaletteBand[] = []
-  for (const hex of hexes) {
-    const parsed = parseColor(hex)
-    if (!parsed) continue
-    out.push({
-      hex: formatColor(parsed, 'hex'),
-      css: formatColor(parsed, 'oklch'),
-      text: formatColor(bestBlackOrWhite(parsed), 'oklch'),
-    })
-  }
-  return out
-}
-
-const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
-
-const UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-  ['year', 31_536_000],
-  ['month', 2_592_000],
-  ['week', 604_800],
-  ['day', 86_400],
-  ['hour', 3600],
-  ['minute', 60],
-]
-
-/** Unix seconds to "3 days ago", in the visitor's locale. */
-export function relativeTime(unixSeconds: number): string {
-  const delta = unixSeconds - Date.now() / 1000
-  const magnitude = Math.abs(delta)
-  for (const [unit, size] of UNITS) {
-    if (magnitude >= size) return RELATIVE.format(Math.round(delta / size), unit)
-  }
-  return RELATIVE.format(Math.round(delta), 'second')
-}
-</script>
-
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
@@ -180,6 +5,15 @@ import type { RouteLocationRaw } from 'vue-router'
 import { Eye, Heart, SquareArrowOutUpRight, Trash2, Wand2 } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import InfoHint from '@/components/common/InfoHint.vue'
+import {
+  VISIBILITY_HINTS,
+  VISIBILITY_LABELS,
+  VISIBILITY_ORDER,
+  bandsFor,
+  relativeTime,
+  type PaletteSummary,
+  type PaletteVisibility,
+} from '@/lib/palette/document'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -399,17 +233,9 @@ async function copyHex(hex: string) {
                 v-for="choice in visibilityChoices"
                 :key="choice.value"
                 :value="choice.value"
-                class="items-start"
-              >
-                <span class="flex flex-col gap-0.5 py-0.5">
-                  <span class="text-xs font-medium">{{ choice.label }}</span>
-                  <span
-                    class="max-w-[18rem] text-[11px] leading-snug text-wrap text-muted-foreground"
-                  >
-                    {{ choice.hint }}
-                  </span>
-                </span>
-              </SelectItem>
+                :label="choice.label"
+                :description="choice.hint"
+              />
             </SelectContent>
           </Select>
 

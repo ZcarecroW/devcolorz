@@ -63,23 +63,49 @@ export const DEFAULT_INVERT_OPTIONS: InvertOptions = {
   gamut: 'css4',
 }
 
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0 || 1)))
+  return t * t * (3 - 2 * t)
+}
+
 /**
- * The lightness remap curve used by `oklch-curve`.
+ * The lightness remap used by `oklch-curve`.
  *
- * A straight flip (l → 1-l) sends a 95% background to 5%, which is far darker
- * than any real dark theme, and a 50% mid-tone to 50%, which does not move at
- * all. Instead we flip *and* compress into the [floor, ceiling] band, then
- * apply a gentle S-curve so mid-tones separate rather than piling up.
+ * A straight flip is wrong, and it is wrong in two different ways depending on
+ * what the colour is for — which is why this function looks at chroma as well
+ * as at lightness.
+ *
+ * A **surface** is near-neutral, and flipping it is exactly right: a 98% page
+ * background should become a dark page background, and near-black body text
+ * should become near-white. Compressing the flip into the [floor, ceiling]
+ * band is what stops the background landing on pure black, which causes
+ * halation on OLED.
+ *
+ * An **accent** is chromatic, and flipping it is a disaster. A brand green at
+ * 56% lightness reads well on white; flip it to 44% and on a dark background
+ * it reaches about Lc 20 — far below the Lc 45 a button needs to be visible at
+ * all. Real design systems do not flip accents. Radix keeps its solid step at
+ * roughly the same lightness so the brand survives, and Material moves a
+ * primary from tone 40 to tone 80. Both move accents *up*.
+ *
+ * So the two treatments are computed separately and blended by how chromatic
+ * the colour is: a neutral gets the flip, a saturated accent gets lifted into
+ * the band where it reads against a dark surface, and the tinted greys in
+ * between get a proportionate mix.
  */
-function curveLightness(l: number, floor: number, ceiling: number): number {
-  const flipped = 1 - l
-  const compressed = floor + flipped * (ceiling - floor)
-  // Smoothstep around the band centre, blended 40% with the linear result so
-  // the correction is felt but never overpowering.
-  const t = (compressed - floor) / (ceiling - floor || 1)
-  const s = t * t * (3 - 2 * t)
-  const blended = t * 0.6 + s * 0.4
-  return floor + blended * (ceiling - floor)
+function curveLightness(l: number, chroma: number, floor: number, ceiling: number): number {
+  // Surfaces and ink: flip into the usable dark band.
+  const surface = floor + (1 - l) * (ceiling - floor)
+
+  // Accents: land between 62% and 88%, darker originals lifted further, so the
+  // result reads on a dark background while preserving the palette's ordering.
+  const accent = 0.62 + (1 - l) * 0.26
+
+  // 0.03 is about where a colour stops looking like a tinted grey; by 0.10 it
+  // is unambiguously an accent.
+  const chromatic = smoothstep(0.03, 0.1, chroma)
+  const mixed = surface * (1 - chromatic) + accent * chromatic
+  return Math.min(ceiling, Math.max(floor, mixed))
 }
 
 /**
@@ -189,7 +215,7 @@ export function toDark(color: ColorInput, options: Partial<InvertOptions> = {}):
       break
     case 'oklch-curve':
     default:
-      toL = curveLightness(fromL, opts.darkFloor, opts.darkCeiling)
+      toL = curveLightness(fromL, chroma, opts.darkFloor, opts.darkCeiling)
       break
   }
   toL = Math.min(1, Math.max(0, toL))
@@ -269,7 +295,7 @@ export const INVERT_HINTS: Record<InvertStrategy, string> = {
   'oklch-flip':
     'Flip perceptual lightness: L becomes 1−L. Much better than the HSL version because the flip now means the same thing for every hue. Its remaining flaw is range — a near-white surface becomes near-black, and mid-tones do not move at all, so the palette loses its internal hierarchy.',
   'oklch-curve':
-    'Flip perceptual lightness, then compress the result into a usable dark band and apply a gentle S-curve. Backgrounds land on a comfortable dark grey instead of pure black, mid-tones separate properly, and chroma is rescaled to what the gamut can actually hold at the new lightness. This is the strategy that produces dark themes people do not immediately turn off.',
+    'Treats surfaces and accents differently, because flipping is right for one and ruinous for the other. Near-neutral colors — page backgrounds, body text — are flipped into a comfortable dark band that stops short of pure black. Chromatic colors are lifted instead: a brand green at 56% lightness reads well on white, but flipped to 44% it nearly disappears against a dark background, so it is raised into the range where it still reads. Radix and Material both do a version of this, and it is what produces a dark theme people do not immediately switch off.',
   radix:
     'Follows the philosophy of the Radix Colors scales: a dark theme is not a mirror image. Backgrounds stay very dark, borders move only a little, solid brand colors keep almost exactly the lightness they had — so your brand still looks like your brand — and only the text steps invert strongly. The most "designed" result, and the least mathematically pure.',
   'contrast-preserve':

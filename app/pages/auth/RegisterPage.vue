@@ -13,6 +13,7 @@
  * pushes people off password managers and onto passwords they can type.
  */
 import { computed, ref } from 'vue'
+import { scorePassword } from '@/lib/auth/password'
 import { RouterLink } from 'vue-router'
 import { CircleAlert, CircleCheck, Eye, EyeOff, LoaderCircle, UserRoundPlus } from '@lucide/vue'
 import AuthShell from '@/components/auth/AuthShell.vue'
@@ -24,64 +25,9 @@ import { Label } from '@/components/ui/label'
 import { ApiError, api } from '@/lib/api'
 import { useSessionStore } from '@/stores/session'
 
-const MIN_LENGTH = 12
-
-/** The passwords a dictionary attack reaches in its first few hundred guesses. */
-const OBVIOUS =
   'password passw0rd password1 letmein welcome qwerty qwertyuiop azerty 123456 1234567 12345678 123456789 1234567890 111111 000000 abc123 monkey dragon sunshine princess football baseball iloveyou admin administrator root login master shadow superman batman starwars trustno1 whatever freedom hunter ninja passwort'.split(
     ' ',
   )
-
-interface Strength {
-  score: number
-  label: string
-  advice: string
-  acceptable: boolean
-}
-
-function scorePassword(value: string): Strength {
-  const length = value.length
-  if (!length) {
-    return {
-      score: 0,
-      label: 'Empty',
-      advice: `At least ${MIN_LENGTH} characters. Longer and boring beats short and clever.`,
-      acceptable: false,
-    }
-  }
-
-  const classes = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((re) => re.test(value)).length
-  const distinct = new Set(value).size
-  const flattened = value.toLowerCase().replace(/[^a-z0-9]/g, '')
-  const obvious = flattened.length > 0 && OBVIOUS.some((word) => flattened.includes(word))
-
-  let score = 0
-  if (length >= MIN_LENGTH) score += 1
-  if (length >= 16) score += 1
-  if (classes >= 3) score += 1
-  if (distinct >= 10) score += 1
-  if (length < MIN_LENGTH) score = 0
-  if (obvious) score = Math.min(score, 1)
-
-  let advice: string
-  if (obvious) {
-    advice = 'This contains a password from the first page of every cracking list. Change the words, not the punctuation.'
-  } else if (length < MIN_LENGTH) {
-    const missing = MIN_LENGTH - length
-    advice = `${missing} more character${missing === 1 ? '' : 's'} to go.`
-  } else if (score < 3) {
-    advice = 'Length beats complexity. Four unrelated words outlast a short password full of symbols.'
-  } else {
-    advice = 'Strong enough. Keep it in a password manager rather than in your head.'
-  }
-
-  return {
-    score,
-    label: ['Too short', 'Weak', 'Fair', 'Good', 'Strong'][score],
-    advice,
-    acceptable: length >= MIN_LENGTH && !obvious,
-  }
-}
 
 const session = useSessionStore()
 

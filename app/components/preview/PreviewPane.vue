@@ -250,15 +250,9 @@ const derivedRoles = computed(() => legend.value.filter((entry) => entry.derived
               v-for="entry in section.items"
               :key="entry.id"
               :value="entry.id"
-              class="items-start"
-            >
-              <span class="flex flex-col gap-0.5 py-0.5">
-                <span class="text-xs font-medium">{{ entry.label }}</span>
-                <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                  {{ entry.description }}
-                </span>
-              </span>
-            </SelectItem>
+              :label="entry.label"
+              :description="entry.description"
+            />
           </SelectGroup>
         </SelectContent>
       </Select>
@@ -417,7 +411,7 @@ const derivedRoles = computed(() => legend.value.filter((entry) => entry.derived
             class="absolute inset-0 rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             :aria-label="`Show ${entry.label} at full size`"
             @click="
-              studio.previewTemplate = entry.id
+              studio.previewTemplate = entry.id;
               studio.previewDensity = 'single'
             "
           />

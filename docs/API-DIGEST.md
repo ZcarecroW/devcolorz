@@ -1327,7 +1327,14 @@ export interface TokenGraph {
 }
 /** Re-case a kebab slug into the configured convention. */
 export declare function applyCase(slug: string, style: NameCase): string;
-/** Join prefix, stem and suffix in the configured case. */
+/**
+ * Join prefix, stem and suffix in the configured case.
+ *
+ * Consecutive identical segments collapse. The default prefix is `color` and
+ * the default fallback stem is also `color`, so an unnamed swatch would
+ * otherwise emit `--color-color-1` — which looks like a bug in the tool, and
+ * would be one.
+ */
 export declare function composeName(config: ExportConfig, stem: string, ...parts: string[]): string;
 /**
  * Stable, unique stems for the palette.

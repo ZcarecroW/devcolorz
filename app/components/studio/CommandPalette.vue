@@ -19,6 +19,7 @@ import {
   CommandList,
   CommandShortcut,
 } from '@/components/ui/command'
+import { PREVIEW_TEMPLATES } from '@/components/preview/registry'
 import { CVD_IDS, CVD_TYPES } from '@/lib/color/cvd'
 import { HARMONY_HINTS, HARMONY_IDS, HARMONY_LABELS } from '@/lib/color/harmony'
 import { EMITTERS } from '@/lib/export/emitters'
@@ -51,16 +52,6 @@ const theme = useThemeStore()
  * registry; when `@/components/preview` exports its own manifest list, replace
  * this with that import so the two cannot diverge.
  */
-const PREVIEW_TEMPLATES: Array<{ id: string; label: string }> = [
-  { id: 'wordmark-grid', label: 'Wordmark grid' },
-  { id: 'landing-hero', label: 'Landing hero' },
-  { id: 'saas-dashboard', label: 'SaaS dashboard' },
-  { id: 'mobile-app-screen', label: 'Mobile app screen' },
-  { id: 'product-card-grid', label: 'Product card grid' },
-  { id: 'blog-article', label: 'Blog article' },
-  { id: 'pricing-table', label: 'Pricing table' },
-  { id: 'chat-ui', label: 'Chat UI' },
-]
 
 const SORTS: Array<{ key: Exclude<SortKey, 'none'>; label: string }> = [
   { key: 'lightness', label: 'lightness' },

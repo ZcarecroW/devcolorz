@@ -21,7 +21,7 @@ export interface ExtraTemplate {
    * wrap — but it stops being a fair test of the palette.
    */
   minColors: number
-  component: () => Promise<{ default: Component }>
+  component: () => Promise<Component>
 }
 
 export const EXTRA_TEMPLATES: ExtraTemplate[] = [

@@ -13,6 +13,7 @@
  * call fails. The server copy is what a fresh device inherits.
  */
 import { computed, onMounted, ref, watch } from 'vue'
+import { scorePassword } from '@/lib/auth/password'
 import { RouterLink, useRouter } from 'vue-router'
 import {
   CircleAlert,
@@ -61,8 +62,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { PREVIEW_TEMPLATES } from '@/components/preview/registry'
 import { ApiError, api, request, type UserResponse } from '@/lib/api'
-import { METRIC_HINTS, type ContrastMetric } from '@/lib/color/contrast'
+import { METRIC_HINTS, METRIC_LABELS, type ContrastMetric } from '@/lib/color/contrast'
 import { FORMAT_HINTS, FORMAT_LABELS } from '@/lib/color/convert'
 import type { ColorFormat } from '@/lib/color/types'
 import { useSessionStore } from '@/stores/session'
@@ -70,83 +72,15 @@ import { useStudioStore } from '@/stores/studio'
 
 const MIN_LENGTH = 12
 
-/** The passwords a dictionary attack reaches in its first few hundred guesses. */
-const OBVIOUS =
   'password passw0rd password1 letmein welcome qwerty qwertyuiop azerty 123456 1234567 12345678 123456789 1234567890 111111 000000 abc123 monkey dragon sunshine princess football baseball iloveyou admin administrator root login master shadow superman batman starwars trustno1 whatever freedom hunter ninja passwort'.split(
     ' ',
   )
-
-interface Strength {
-  score: number
-  label: string
-  advice: string
-  acceptable: boolean
-}
-
-function scorePassword(value: string): Strength {
-  const length = value.length
-  if (!length) {
-    return {
-      score: 0,
-      label: 'Empty',
-      advice: `At least ${MIN_LENGTH} characters. Longer and boring beats short and clever.`,
-      acceptable: false,
-    }
-  }
-
-  const classes = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((re) => re.test(value)).length
-  const distinct = new Set(value).size
-  const flattened = value.toLowerCase().replace(/[^a-z0-9]/g, '')
-  const obvious = flattened.length > 0 && OBVIOUS.some((word) => flattened.includes(word))
-
-  let score = 0
-  if (length >= MIN_LENGTH) score += 1
-  if (length >= 16) score += 1
-  if (classes >= 3) score += 1
-  if (distinct >= 10) score += 1
-  if (length < MIN_LENGTH) score = 0
-  if (obvious) score = Math.min(score, 1)
-
-  let advice: string
-  if (obvious) {
-    advice = 'This contains a password from the first page of every cracking list. Change the words, not the punctuation.'
-  } else if (length < MIN_LENGTH) {
-    const missing = MIN_LENGTH - length
-    advice = `${missing} more character${missing === 1 ? '' : 's'} to go.`
-  } else if (score < 3) {
-    advice = 'Length beats complexity. Four unrelated words outlast a short password full of symbols.'
-  } else {
-    advice = 'Strong enough. Keep it in a password manager rather than in your head.'
-  }
-
-  return {
-    score,
-    label: ['Too short', 'Weak', 'Fair', 'Good', 'Strong'][score],
-    advice,
-    acceptable: length >= MIN_LENGTH && !obvious,
-  }
-}
 
 /**
  * The preview templates the studio can default to. This mirrors the preview
  * registry; when `@/components/preview` exports a manifest, import that instead
  * so the two lists cannot drift.
  */
-const PREVIEW_TEMPLATES: Array<{ id: string; label: string }> = [
-  { id: 'wordmark-grid', label: 'Wordmark grid' },
-  { id: 'landing-hero', label: 'Landing hero' },
-  { id: 'saas-dashboard', label: 'SaaS dashboard' },
-  { id: 'mobile-app-screen', label: 'Mobile app screen' },
-  { id: 'product-card-grid', label: 'Product card grid' },
-  { id: 'blog-article', label: 'Blog article' },
-  { id: 'pricing-table', label: 'Pricing table' },
-  { id: 'chat-ui', label: 'Chat UI' },
-]
-
-const METRIC_LABELS: Record<ContrastMetric, string> = {
-  wcag: 'WCAG 2 ratio',
-  apca: 'APCA Lc',
-}
 
 const FORMAT_IDS = Object.keys(FORMAT_LABELS) as ColorFormat[]
 const METRIC_IDS = Object.keys(METRIC_LABELS) as ContrastMetric[]
@@ -806,14 +740,13 @@ onMounted(() => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent class="max-h-96">
-                <SelectItem v-for="id in FORMAT_IDS" :key="id" :value="id" class="items-start">
-                  <span class="flex flex-col gap-0.5 py-0.5">
-                    <span class="text-xs font-medium">{{ FORMAT_LABELS[id] }}</span>
-                    <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                      {{ FORMAT_HINTS[id] }}
-                    </span>
-                  </span>
-                </SelectItem>
+                <SelectItem
+                  v-for="id in FORMAT_IDS"
+                  :key="id"
+                  :value="id"
+                  :label="FORMAT_LABELS[id]"
+                  :description="FORMAT_HINTS[id]"
+                />
               </SelectContent>
             </Select>
           </div>
@@ -863,14 +796,13 @@ onMounted(() => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem v-for="id in METRIC_IDS" :key="id" :value="id" class="items-start">
-                  <span class="flex flex-col gap-0.5 py-0.5">
-                    <span class="text-xs font-medium">{{ METRIC_LABELS[id] }}</span>
-                    <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                      {{ METRIC_HINTS[id] }}
-                    </span>
-                  </span>
-                </SelectItem>
+                <SelectItem
+                  v-for="id in METRIC_IDS"
+                  :key="id"
+                  :value="id"
+                  :label="METRIC_LABELS[id]"
+                  :description="METRIC_HINTS[id]"
+                />
               </SelectContent>
             </Select>
           </div>

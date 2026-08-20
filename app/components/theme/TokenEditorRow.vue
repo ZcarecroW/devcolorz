@@ -143,7 +143,8 @@ const FONT_STACKS = [
   '"IBM Plex Mono", ui-monospace, Menlo, monospace',
 ]
 
-const fontListId = `fonts-${useId()}`
+const rowId = useId()
+const fontListId = `fonts-${rowId}`
 
 /** `-?digits` plus an optional unit; the shadow inputs are deliberately unitless. */
 const LENGTH_PATTERN = /^\s*(-?\d*\.?\d+)\s*([a-z%]*)\s*$/i
@@ -229,9 +230,9 @@ const numberValue = computed(() => {
 
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-2">
-              <label class="w-4 shrink-0 font-mono text-[10px] text-muted-foreground" :for="`${fontListId}-l`">L</label>
+              <label class="w-4 shrink-0 font-mono text-[10px] text-muted-foreground" :for="`${rowId}-l`">L</label>
               <input
-                :id="`${fontListId}-l`"
+                :id="`${rowId}-l`"
                 type="range"
                 class="h-4 flex-1 accent-primary"
                 min="0"
@@ -246,9 +247,9 @@ const numberValue = computed(() => {
             </div>
 
             <div class="flex items-center gap-2">
-              <label class="w-4 shrink-0 font-mono text-[10px] text-muted-foreground" :for="`${fontListId}-c`">C</label>
+              <label class="w-4 shrink-0 font-mono text-[10px] text-muted-foreground" :for="`${rowId}-c`">C</label>
               <input
-                :id="`${fontListId}-c`"
+                :id="`${rowId}-c`"
                 type="range"
                 class="h-4 flex-1 accent-primary"
                 min="0"
@@ -263,9 +264,9 @@ const numberValue = computed(() => {
             </div>
 
             <div class="flex items-center gap-2">
-              <label class="w-4 shrink-0 font-mono text-[10px] text-muted-foreground" :for="`${fontListId}-h`">H</label>
+              <label class="w-4 shrink-0 font-mono text-[10px] text-muted-foreground" :for="`${rowId}-h`">H</label>
               <input
-                :id="`${fontListId}-h`"
+                :id="`${rowId}-h`"
                 type="range"
                 class="h-4 flex-1 accent-primary"
                 min="0"

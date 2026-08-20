@@ -128,27 +128,27 @@ const seedText = computed({
           <SelectValue />
         </SelectTrigger>
         <SelectContent class="max-h-96">
-          <SelectItem v-for="id in SPACE_IDS" :key="id" :value="id" class="items-start">
-            <span class="flex flex-col gap-0.5 py-0.5">
-              <span class="flex items-center gap-2 text-xs font-medium">
-                {{ SPACES[id].label }}
-                <span
-                  v-if="SPACES[id].perceptual"
-                  class="rounded-sm bg-primary/15 px-1 text-[9px] text-primary"
-                >
-                  perceptual
-                </span>
-                <span
-                  v-if="SPACES[id].wideGamut"
-                  class="rounded-sm bg-muted px-1 text-[9px] text-muted-foreground"
-                >
-                  wide gamut
-                </span>
+          <SelectItem
+            v-for="id in SPACE_IDS"
+            :key="id"
+            :value="id"
+            :label="SPACES[id].label"
+            :description="SPACES[id].description"
+          >
+            <template #badge>
+              <span
+                v-if="SPACES[id].perceptual"
+                class="rounded-sm bg-primary/15 px-1 text-[9px] text-primary"
+              >
+                perceptual
               </span>
-              <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                {{ SPACES[id].description }}
+              <span
+                v-if="SPACES[id].wideGamut"
+                class="rounded-sm bg-muted px-1 text-[9px] text-muted-foreground"
+              >
+                wide gamut
               </span>
-            </span>
+            </template>
           </SelectItem>
         </SelectContent>
       </Select>
@@ -220,15 +220,9 @@ const seedText = computed({
               v-for="(label, id) in GAMUT_STRATEGY_LABELS"
               :key="id"
               :value="id"
-              class="items-start"
-            >
-              <span class="flex flex-col gap-0.5 py-0.5">
-                <span class="text-xs">{{ label }}</span>
-                <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                  {{ GAMUT_STRATEGY_HINTS[id] }}
-                </span>
-              </span>
-            </SelectItem>
+              :label="label"
+              :description="GAMUT_STRATEGY_HINTS[id]"
+            />
           </SelectContent>
         </Select>
       </div>

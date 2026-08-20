@@ -24,13 +24,21 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { METRIC_HINTS, apcaVerdict, wcagLevel, type ContrastMetric } from '@/lib/color/contrast'
+import {
+  METRIC_HINTS,
+  METRIC_LABELS,
+  apcaVerdict,
+  wcagLevel,
+  type ContrastMetric,
+} from '@/lib/color/contrast'
 import { formatColor } from '@/lib/color/convert'
 import { describeColor } from '@/lib/color/name'
 import {
   DEFAULT_SCALE_OPTIONS,
   SCALE_MODE_HINTS,
+  SCALE_MODE_LABELS,
   SCALE_PRESET_HINTS,
+  SCALE_PRESET_LABELS,
   generateNeutralScale,
   generateScale,
   type ScaleMode,
@@ -44,25 +52,6 @@ import { useStudioStore } from '@/stores/studio'
 
 const palette = usePaletteStore()
 const studio = useStudioStore()
-
-/* The engine ships hints for these but no display labels, so they live here. */
-const PRESET_LABELS: Record<ScalePreset, string> = {
-  tailwind: 'Tailwind — 50 to 950',
-  radix: 'Radix — 1 to 12',
-  material: 'Material 3 — 0 to 100',
-  custom: 'Custom',
-}
-
-const MODE_LABELS: Record<ScaleMode, string> = {
-  lightness: 'Even lightness',
-  contrast: 'Solved for contrast',
-  hybrid: 'Hybrid',
-}
-
-const METRIC_LABELS: Record<ContrastMetric, string> = {
-  wcag: 'WCAG 2.x ratio',
-  apca: 'APCA (Lc)',
-}
 
 /* ---------------- seed ---------------- */
 
@@ -255,15 +244,9 @@ function replacePalette() {
               v-for="(hint, id) in SCALE_PRESET_HINTS"
               :key="id"
               :value="id"
-              class="items-start"
-            >
-              <span class="flex flex-col gap-0.5 py-0.5">
-                <span class="text-xs">{{ PRESET_LABELS[id] }}</span>
-                <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                  {{ hint }}
-                </span>
-              </span>
-            </SelectItem>
+              :label="SCALE_PRESET_LABELS[id]"
+              :description="hint"
+            />
           </SelectContent>
         </Select>
       </div>
@@ -304,15 +287,9 @@ function replacePalette() {
               v-for="(hint, id) in SCALE_MODE_HINTS"
               :key="id"
               :value="id"
-              class="items-start"
-            >
-              <span class="flex flex-col gap-0.5 py-0.5">
-                <span class="text-xs">{{ MODE_LABELS[id] }}</span>
-                <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                  {{ hint }}
-                </span>
-              </span>
-            </SelectItem>
+              :label="SCALE_MODE_LABELS[id]"
+              :description="hint"
+            />
           </SelectContent>
         </Select>
       </div>
@@ -434,15 +411,9 @@ function replacePalette() {
               v-for="(hint, id) in METRIC_HINTS"
               :key="id"
               :value="id"
-              class="items-start"
-            >
-              <span class="flex flex-col gap-0.5 py-0.5">
-                <span class="text-xs">{{ METRIC_LABELS[id] }}</span>
-                <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                  {{ hint }}
-                </span>
-              </span>
-            </SelectItem>
+              :label="METRIC_LABELS[id]"
+              :description="hint"
+            />
           </SelectContent>
         </Select>
       </div>

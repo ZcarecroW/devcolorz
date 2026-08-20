@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_EXPORT_CONFIG } from '@/lib/export/config'
+import { buildGraph } from '@/lib/export/graph'
+import { makeSwatch } from '@/stores/palette'
 import { formatColor, parseColor } from './convert'
 import { apca, makeReadable, wcag, wcagLevel } from './contrast'
 import { cssGamutMap, deltaEOK, isInGamut, maxChroma } from './gamut'
@@ -291,6 +294,28 @@ describe('dark-mode derivation', () => {
     expect(Math.abs(lightRatio - darkRatio)).toBeLessThan(0.6)
   })
 
+
+  it('keeps chromatic accents readable in dark mode', () => {
+    // The failure this guards against: a straight lightness flip sends a brand
+    // color at L 56% to L 44%, which on a dark background reaches about Lc 20 —
+    // far below the Lc 45 a button needs to be visible at all. Accents must be
+    // lifted, not mirrored.
+    const darkBackground = { mode: 'oklch' as const, l: 0.145, c: 0, h: 0 }
+    for (const hex of ['#617f3c', '#2f9900', '#0099c4', '#e76f51', '#7c3aed']) {
+      const dark = toDark(hex)
+      const lc = Math.abs(apca(dark, darkBackground))
+      expect(lc, `${hex} -> Lc ${lc.toFixed(0)}`).toBeGreaterThan(45)
+    }
+  })
+
+  it('still flips near-neutral surfaces', () => {
+    // The other half of the same rule: a page background is not an accent and
+    // must invert, or dark mode is just light mode with brighter buttons.
+    expect(toDark('#ffffff').l ?? 1).toBeLessThan(0.2)
+    expect(toDark('#f8fafc').l ?? 1).toBeLessThan(0.22)
+    expect(toDark('#000000').l ?? 0).toBeGreaterThan(0.85)
+  })
+
   it('always returns displayable colors', () => {
     for (const strategy of ['oklch-curve', 'radix', 'material', 'oklch-flip', 'hsl-flip'] as const) {
       for (const hex of ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ffffff', '#000000']) {
@@ -463,6 +488,45 @@ describe('naming', () => {
 
   it('de-duplicates slugs so exports never collide', () => {
     expect(uniqueSlugs(['Blue', 'Blue', 'blue'])).toEqual(['blue', 'blue-2', 'blue-3'])
+  })
+})
+
+describe('export naming', () => {
+  it('does not repeat the prefix in the fallback name', () => {
+    // The default prefix and the default fallback stem are both "color", so a
+    // naive join emitted `--color-color-1`, which reads as a bug in the tool.
+    const swatches = ['#617f3c', '#2f9900'].map((hex) => makeSwatch(parseColor(hex)!))
+    const names = buildGraph(swatches, DEFAULT_EXPORT_CONFIG).tokens.map((t) => t.name)
+    expect(names).toEqual(['color-1', 'color-2'])
+  })
+
+  it('keeps a custom prefix and a named color distinct', () => {
+    const swatches = [makeSwatch(parseColor('#2f9900')!, 'Brand Green')]
+    const names = buildGraph(swatches, { ...DEFAULT_EXPORT_CONFIG, prefix: 'acme' }).tokens
+    expect(names[0].name).toBe('acme-brand-green')
+  })
+
+  it('disambiguates two colors with the same name', () => {
+    const swatches = [
+      makeSwatch(parseColor('#2f9900')!, 'Green'),
+      makeSwatch(parseColor('#617f3c')!, 'Green'),
+    ]
+    const names = buildGraph(swatches, DEFAULT_EXPORT_CONFIG).tokens.map((t) => t.name)
+    expect(new Set(names).size).toBe(2)
+  })
+
+  it('honours the case setting', () => {
+    const swatches = [makeSwatch(parseColor('#2f9900')!, 'Brand Green')]
+    for (const [style, expected] of [
+      ['kebab', 'color-brand-green'],
+      ['camel', 'colorBrandGreen'],
+      ['snake', 'color_brand_green'],
+      ['pascal', 'ColorBrandGreen'],
+      ['constant', 'COLOR_BRAND_GREEN'],
+    ] as const) {
+      const graph = buildGraph(swatches, { ...DEFAULT_EXPORT_CONFIG, case: style })
+      expect(graph.tokens[0].name, style).toBe(expected)
+    }
   })
 })
 

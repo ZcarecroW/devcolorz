@@ -169,14 +169,13 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
             <span class="truncate font-mono text-xs">{{ FORMAT_LABELS[studio.format] }}</span>
           </SelectTrigger>
           <SelectContent class="max-h-96">
-            <SelectItem v-for="id in FORMAT_IDS" :key="id" :value="id" class="items-start">
-              <span class="flex flex-col gap-0.5 py-0.5">
-                <span class="font-mono text-xs">{{ FORMAT_LABELS[id] }}</span>
-                <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                  {{ FORMAT_HINTS[id] }}
-                </span>
-              </span>
-            </SelectItem>
+            <SelectItem
+              v-for="id in FORMAT_IDS"
+              :key="id"
+              :value="id"
+              :label="FORMAT_LABELS[id]"
+              :description="FORMAT_HINTS[id]"
+            />
           </SelectContent>
         </Select>
         <InfoHint title="Notation" wide :text="FORMAT_HINTS[studio.format]" />
@@ -238,18 +237,18 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
             <span class="truncate text-xs">{{ cvdLabel }}</span>
           </SelectTrigger>
           <SelectContent class="max-h-96">
-            <SelectItem v-for="id in CVD_IDS" :key="id" :value="id" class="items-start">
-              <span class="flex flex-col gap-0.5 py-0.5">
-                <span class="flex items-center gap-2 text-xs font-medium">
-                  {{ CVD_TYPES[id].label }}
-                  <span class="rounded-sm bg-muted px-1 text-[9px] text-muted-foreground">
-                    {{ CVD_TYPES[id].prevalence }}
-                  </span>
+            <SelectItem
+              v-for="id in CVD_IDS"
+              :key="id"
+              :value="id"
+              :label="CVD_TYPES[id].label"
+              :description="CVD_TYPES[id].hint"
+            >
+              <template #badge>
+                <span class="rounded-sm bg-muted px-1 text-[9px] text-muted-foreground">
+                  {{ CVD_TYPES[id].prevalence }}
                 </span>
-                <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                  {{ CVD_TYPES[id].hint }}
-                </span>
-              </span>
+              </template>
             </SelectItem>
           </SelectContent>
         </Select>

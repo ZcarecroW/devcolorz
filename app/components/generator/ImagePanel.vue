@@ -38,6 +38,7 @@ import {
   ALGORITHM_HINTS,
   ALGORITHM_LABELS,
   EXTRACT_SORT_HINTS,
+  EXTRACT_SORT_LABELS,
   extractPalette,
   pickAt,
   type ExtractAlgorithm,
@@ -67,14 +68,6 @@ const MAX_BYTES = 20 * 1024 * 1024
  * a 220px preview; 1400px is far more resolution than an eyedropper needs.
  */
 const MAX_CANVAS_EDGE = 1400
-
-const SORT_LABELS: Record<ExtractOptions['sort'], string> = {
-  lightness: 'Lightness',
-  chroma: 'Chroma',
-  hue: 'Hue',
-  population: 'Population',
-  none: 'Algorithm order',
-}
 
 /* ---------------- state ---------------- */
 
@@ -451,15 +444,9 @@ function addAll() {
               v-for="(label, id) in ALGORITHM_LABELS"
               :key="id"
               :value="id"
-              class="items-start"
-            >
-              <span class="flex flex-col gap-0.5 py-0.5">
-                <span class="text-xs">{{ label }}</span>
-                <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                  {{ ALGORITHM_HINTS[id] }}
-                </span>
-              </span>
-            </SelectItem>
+              :label="label"
+              :description="ALGORITHM_HINTS[id]"
+            />
           </SelectContent>
         </Select>
       </div>
@@ -516,18 +503,12 @@ function addAll() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem
-              v-for="(label, id) in SORT_LABELS"
+              v-for="(label, id) in EXTRACT_SORT_LABELS"
               :key="id"
               :value="id"
-              class="items-start"
-            >
-              <span class="flex flex-col gap-0.5 py-0.5">
-                <span class="text-xs">{{ label }}</span>
-                <span class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                  {{ EXTRACT_SORT_HINTS[id] }}
-                </span>
-              </span>
-            </SelectItem>
+              :label="label"
+              :description="EXTRACT_SORT_HINTS[id]"
+            />
           </SelectContent>
         </Select>
       </div>

@@ -36,7 +36,12 @@ import { ALPHA_MODE_HINTS } from '@/lib/color/alpha'
 import { FORMAT_HINTS, FORMAT_LABELS, formatColor } from '@/lib/color/convert'
 import { INVERT_HINTS, INVERT_LABELS, reportInversion, toDark } from '@/lib/color/invert'
 import { slugify } from '@/lib/color/name'
-import { SCALE_MODE_HINTS, SCALE_PRESET_HINTS } from '@/lib/color/scale'
+import {
+  SCALE_MODE_HINTS,
+  SCALE_MODE_LABELS,
+  SCALE_PRESET_HINTS,
+  SCALE_PRESET_LABELS,
+} from '@/lib/color/scale'
 import type { ColorFormat, Oklch, Swatch } from '@/lib/color/types'
 import type { InvertStrategy } from '@/lib/color/invert'
 import type { ScaleMode, ScalePreset } from '@/lib/color/scale'
@@ -342,16 +347,13 @@ const precisionApplies = computed(() => !PRECISION_FREE.includes(config.value.fo
                 <SelectValue />
               </SelectTrigger>
               <SelectContent class="max-h-96">
-                <SelectItem v-for="id in FORMAT_ORDER" :key="id" :value="id" class="items-start">
-                  <span class="flex flex-col gap-0.5 py-0.5">
-                    <span class="text-xs font-medium">{{ FORMAT_LABELS[id] }}</span>
-                    <span
-                      class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground"
-                    >
-                      {{ FORMAT_HINTS[id] }}
-                    </span>
-                  </span>
-                </SelectItem>
+                <SelectItem
+                  v-for="id in FORMAT_ORDER"
+                  :key="id"
+                  :value="id"
+                  :label="FORMAT_LABELS[id]"
+                  :description="FORMAT_HINTS[id]"
+                />
               </SelectContent>
             </Select>
           </div>
@@ -452,17 +454,9 @@ const precisionApplies = computed(() => !PRECISION_FREE.includes(config.value.fo
                   v-for="(label, id) in NAME_CASE_LABELS"
                   :key="id"
                   :value="id"
-                  class="items-start"
-                >
-                  <span class="flex flex-col gap-0.5 py-0.5">
-                    <span class="font-mono text-xs">{{ label }}</span>
-                    <span
-                      class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground"
-                    >
-                      {{ NAME_CASE_HINTS[id] }}
-                    </span>
-                  </span>
-                </SelectItem>
+                  :label="label"
+                  :description="NAME_CASE_HINTS[id]"
+                />
               </SelectContent>
             </Select>
           </div>
@@ -560,17 +554,9 @@ const precisionApplies = computed(() => !PRECISION_FREE.includes(config.value.fo
                       v-for="(label, id) in ALPHA_MODE_LABELS"
                       :key="id"
                       :value="id"
-                      class="items-start"
-                    >
-                      <span class="flex flex-col gap-0.5 py-0.5">
-                        <span class="text-xs font-medium">{{ label }}</span>
-                        <span
-                          class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground"
-                        >
-                          {{ ALPHA_MODE_HINTS[id] }}
-                        </span>
-                      </span>
-                    </SelectItem>
+                      :label="label"
+                      :description="ALPHA_MODE_HINTS[id]"
+                    />
                   </SelectContent>
                 </Select>
               </div>
@@ -663,17 +649,9 @@ const precisionApplies = computed(() => !PRECISION_FREE.includes(config.value.fo
                       v-for="(hint, id) in SCALE_PRESET_HINTS"
                       :key="id"
                       :value="id"
-                      class="items-start"
-                    >
-                      <span class="flex flex-col gap-0.5 py-0.5">
-                        <span class="text-xs font-medium capitalize">{{ id }}</span>
-                        <span
-                          class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground"
-                        >
-                          {{ hint }}
-                        </span>
-                      </span>
-                    </SelectItem>
+                      :label="SCALE_PRESET_LABELS[id]"
+                      :description="hint"
+                    />
                   </SelectContent>
                 </Select>
               </div>
@@ -695,17 +673,9 @@ const precisionApplies = computed(() => !PRECISION_FREE.includes(config.value.fo
                       v-for="(hint, id) in SCALE_MODE_HINTS"
                       :key="id"
                       :value="id"
-                      class="items-start"
-                    >
-                      <span class="flex flex-col gap-0.5 py-0.5">
-                        <span class="text-xs font-medium capitalize">{{ id }}</span>
-                        <span
-                          class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground"
-                        >
-                          {{ hint }}
-                        </span>
-                      </span>
-                    </SelectItem>
+                      :label="SCALE_MODE_LABELS[id]"
+                      :description="hint"
+                    />
                   </SelectContent>
                 </Select>
               </div>
@@ -905,17 +875,9 @@ const precisionApplies = computed(() => !PRECISION_FREE.includes(config.value.fo
                       v-for="(label, id) in DARK_DELIVERY_LABELS"
                       :key="id"
                       :value="id"
-                      class="items-start"
-                    >
-                      <span class="flex flex-col gap-0.5 py-0.5">
-                        <span class="text-xs font-medium">{{ label }}</span>
-                        <span
-                          class="max-w-[20rem] text-[11px] leading-snug text-wrap text-muted-foreground"
-                        >
-                          {{ DARK_DELIVERY_HINTS[id] }}
-                        </span>
-                      </span>
-                    </SelectItem>
+                      :label="label"
+                      :description="DARK_DELIVERY_HINTS[id]"
+                    />
                   </SelectContent>
                 </Select>
               </div>

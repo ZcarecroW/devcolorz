@@ -199,15 +199,9 @@ function toggleLock() {
               v-for="(label, id) in DISTRIBUTION_LABELS"
               :key="id"
               :value="id"
-              class="items-start"
-            >
-              <span class="flex flex-col gap-0.5 py-0.5">
-                <span class="text-xs">{{ label }}</span>
-                <span class="max-w-[16rem] text-[11px] leading-snug text-wrap text-muted-foreground">
-                  {{ DISTRIBUTION_HINTS[id] }}
-                </span>
-              </span>
-            </SelectItem>
+              :label="label"
+              :description="DISTRIBUTION_HINTS[id]"
+            />
           </SelectContent>
         </Select>
       </div>

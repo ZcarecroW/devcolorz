@@ -75,12 +75,24 @@ export function applyCase(slug: string, style: NameCase): string {
   }
 }
 
-/** Join prefix, stem and suffix in the configured case. */
+/**
+ * Join prefix, stem and suffix in the configured case.
+ *
+ * Consecutive identical segments collapse. The default prefix is `color` and
+ * the default fallback stem is also `color`, so an unnamed swatch would
+ * otherwise emit `--color-color-1` — which looks like a bug in the tool, and
+ * would be one.
+ */
 export function composeName(config: ExportConfig, stem: string, ...parts: string[]): string {
-  const segments = [config.prefix, stem, ...parts, config.suffix]
-    .filter((part) => part && part.length)
-    .map((part) => slugify(String(part)))
-    .filter(Boolean)
+  const segments: string[] = []
+  for (const part of [config.prefix, stem, ...parts, config.suffix]) {
+    if (!part) continue
+    const slug = slugify(String(part))
+    if (!slug) continue
+    for (const piece of slug.split('-')) {
+      if (piece && segments[segments.length - 1] !== piece) segments.push(piece)
+    }
+  }
   return applyCase(segments.join('-'), config.case)
 }
 

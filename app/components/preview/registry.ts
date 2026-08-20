@@ -13,6 +13,8 @@
 
 import type { Component } from 'vue'
 
+import { EXTRA_TEMPLATES } from './templates/extra'
+
 export interface PreviewTemplate {
   id: string
   label: string
@@ -89,4 +91,8 @@ export const PREVIEW_TEMPLATES: PreviewTemplate[] = [
     minColors: 1,
     component: () => import('./templates/TonalRamp.vue'),
   },
+  // The twelve additional templates live in their own module so this file stays
+  // readable; they are ordinary PreviewTemplate rows and the picker groups them
+  // by `group` like any other.
+  ...EXTRA_TEMPLATES,
 ]

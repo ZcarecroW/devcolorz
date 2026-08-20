@@ -10,20 +10,15 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Braces,
-  Eye,
   Image as ImageIcon,
-  Link2,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
-  Redo2,
   Save,
   ScanEye,
   Shuffle,
   Sliders,
-  Sparkles,
-  Undo2,
 } from '@lucide/vue'
 import { useMediaQuery } from '@vueuse/core'
 import { toast } from 'vue-sonner'
@@ -117,7 +112,7 @@ void router
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col">
+  <div class="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
     <StudioToolbar @copy-link="copyLink" />
 
     <div class="flex min-h-0 flex-1 overflow-hidden">
