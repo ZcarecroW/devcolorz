@@ -206,12 +206,19 @@ function onKeydown(event: KeyboardEvent) {
     <div class="flex flex-col items-center gap-1 p-3 pb-6 text-center sm:pb-8">
       <button
         type="button"
-        class="flex items-center gap-1.5 rounded-md px-2 py-1 font-mono text-sm font-semibold tracking-wide tabular-nums transition hover:bg-current/12 sm:text-base"
+        class="flex w-full max-w-full items-center justify-center gap-1.5 rounded-md px-2 py-1 font-mono text-sm font-semibold tracking-wide tabular-nums transition hover:bg-current/12"
+        :class="display.length > 22 ? 'text-[11px] sm:text-xs' : 'text-sm sm:text-base'"
         :style="{ opacity: chromeContrast > 45 ? 1 : 0.9 }"
         :aria-label="`Copy ${display}`"
+        :title="display"
         @click="copy"
       >
-        <span class="max-w-[14ch] truncate sm:max-w-none">{{ display }}</span>
+        <!--
+          `min-w-0` is what actually lets this truncate: a flex child defaults
+          to min-width:auto and refuses to shrink below its content, so an
+          oklch() value would otherwise run straight over the next column.
+        -->
+        <span class="min-w-0 truncate">{{ display }}</span>
         <Check v-if="copied" class="size-3.5" />
         <Copy v-else class="size-3.5 opacity-0 transition group-hover/swatch:opacity-60" />
       </button>
