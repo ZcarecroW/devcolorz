@@ -1,0 +1,38 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+deploy/
+*.tsbuildinfo
+
+# secrets / local config
+.env
+.env.*
+!.env.example
+*.local
+scripts/deploy.config.json
+
+# runtime data (never commit a database)
+storage/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+
+# editor / os
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# research artifacts kept locally
+docs/research/raw/
