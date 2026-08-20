@@ -1,0 +1,33 @@
+# Route every /api/... request to the front controller.
+#
+# Two mechanisms, because shared hosts differ in which modules they enable and
+# a 404 on the API is a silent, total failure. FallbackResource is cleaner and
+# needs only mod_dir; the rewrite is the fallback for hosts that disable it.
+
+<IfModule mod_dir.c>
+    FallbackResource /api/index.php
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /api/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L,QSA]
+</IfModule>
+
+# The library and route files are included by index.php and must never be
+# requested directly: some of them would fatal, and a fatal can leak a path.
+<FilesMatch "\.(php)$">
+    <IfModule mod_authz_core.c>
+        Require all granted
+    </IfModule>
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "no-referrer"
+    Header always unset X-Powered-By
+</IfModule>
+
+Options -Indexes

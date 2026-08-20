@@ -1,0 +1,80 @@
+# DevColorz — document root configuration.
+
+DirectoryIndex index.html index.php
+Options -Indexes
+
+# ---------------------------------------------------------------------------
+# Secrets and runtime state
+# ---------------------------------------------------------------------------
+# The database, sessions, logs and backups all live under storage/, which has
+# its own deny rules. These are the second and third lines of defence: a
+# top-level rule, and a filename convention (.ht*) that stock Apache refuses to
+# serve even when AllowOverride is off.
+
+<FilesMatch "^(config\.php|\.user\.ini|\.htaccess|.*\.sqlite(-wal|-shm)?|.*\.log)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+<IfModule mod_alias.c>
+    RedirectMatch 404 ^/storage(/|$)
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Security headers
+# ---------------------------------------------------------------------------
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always unset X-Powered-By
+
+    # The hCaptcha widget needs its own script, frame and connect origins.
+    # 'unsafe-inline' on style-src is unavoidable: the whole point of this app
+    # is painting elements from colors computed at runtime, which means inline
+    # style attributes. Scripts stay strictly same-origin.
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' https://js.hcaptcha.com https://*.hcaptcha.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://api.hcaptcha.com https://*.hcaptcha.com; frame-src https://*.hcaptcha.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Caching
+# ---------------------------------------------------------------------------
+# Built assets carry a content hash in the filename, so they can be cached
+# forever. index.html must not be, or a deploy is invisible until the cache
+# expires.
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/html "access plus 0 seconds"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+
+<IfModule mod_headers.c>
+    <FilesMatch "\.(js|css|woff2)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    <FilesMatch "\.(html|json)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml application/javascript application/json image/svg+xml
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Routing
+# ---------------------------------------------------------------------------
+# The SPA uses hash routing, so no rewrite is needed for deep links — which is
+# deliberate: a missing rewrite rule is the most common way a shared-hosting
+# SPA deploy breaks, and hash routing simply cannot suffer from it.

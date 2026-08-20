@@ -36,3 +36,8 @@ pnpm-debug.log*
 
 # research artifacts kept locally
 docs/research/raw/
+
+# local API test artifacts
+server/storage/
+server/config.php
+scratch/
