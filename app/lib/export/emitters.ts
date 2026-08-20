@@ -274,7 +274,7 @@ export const dtcgEmitter: Emitter = {
           },
           ...(token.comment ? { $description: token.comment } : {}),
           $extensions: {
-            'vision.fabula.devcolorz': {
+            'org.devcolorz': {
               contrastOnWhite: Number(token.meta.contrastOnWhite.toFixed(3)),
               apcaOnWhite: Number(token.meta.apcaOnWhite.toFixed(1)),
               kind: token.kind,
