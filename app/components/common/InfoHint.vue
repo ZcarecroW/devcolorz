@@ -12,6 +12,7 @@ import { ref } from 'vue'
 import { Info } from '@lucide/vue'
 import {
   TooltipContent,
+  TooltipPortal,
   TooltipProvider,
   TooltipRoot,
   TooltipTrigger,
@@ -58,7 +59,15 @@ const open = ref(false)
           </slot>
         </button>
       </TooltipTrigger>
-      <TooltipContent
+      <!--
+        Portalled to the body. Rendered in place, the tooltip is a descendant
+        of the toolbar, and the swatch strip is a later sibling — so the strip
+        painted straight over it and a tooltip opened from the toolbar was
+        unreadable. z-index cannot fix that across separate stacking contexts;
+        leaving the DOM subtree can.
+      -->
+      <TooltipPortal>
+        <TooltipContent
         :side="props.side"
         :align="props.align"
         :side-offset="6"
@@ -80,7 +89,8 @@ const open = ref(false)
         <slot>
           <p class="text-xs leading-relaxed text-muted-foreground">{{ props.text }}</p>
         </slot>
-      </TooltipContent>
+        </TooltipContent>
+      </TooltipPortal>
     </TooltipRoot>
   </TooltipProvider>
 </template>

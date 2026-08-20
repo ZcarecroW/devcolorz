@@ -292,7 +292,8 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
       <Eye class="size-3.5 shrink-0" />
       <span class="font-medium">Simulating {{ cvdLabel }}</span>
       <span class="text-primary/80">
-        Every color on this screen is filtered, including the previews and the exports you preview.
+        The palette strip and every preview are filtered. The controls on the left, and the values
+        you export, are not — this changes what you see, never what you save.
       </span>
       <Button
         variant="ghost"

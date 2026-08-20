@@ -87,6 +87,28 @@ onMounted(async () => {
   if (!palette.count) palette.init(null)
 })
 
+/**
+ * Load a palette when the route's state parameter changes.
+ *
+ * `onMounted` alone is not enough: vue-router reuses this component when only
+ * a parameter changes, so pasting a share link while already in the studio
+ * updated the address bar and nothing else. The comparison against the current
+ * palette is what stops this fighting the `replaceState` below, which rewrites
+ * the same parameter every time a colour moves.
+ */
+watch(
+  () => route.params.state,
+  async (encoded) => {
+    if (typeof encoded !== 'string' || !encoded) return
+    const next = await decodeState(encoded)
+    if (!next?.colors.length) return
+    const incoming = next.colors.map((c) => formatColor(c, 'hex')).join()
+    if (incoming === palette.hexes.join()) return
+    palette.loadState(next, 'Open shared palette')
+    toast.success(`Loaded ${next.colors.length} colors from the link`)
+  },
+)
+
 useKeyboardShortcuts()
 
 // Keep the address bar in step with the palette so a copied URL is always the

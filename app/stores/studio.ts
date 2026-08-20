@@ -37,6 +37,7 @@ interface Persisted {
   previewScheme: PreviewScheme
   previewDensity: 'single' | 'grid'
   showContrastBadges: boolean
+  cvd: CvdType
 }
 
 const DEFAULTS: Persisted = {
@@ -49,6 +50,7 @@ const DEFAULTS: Persisted = {
   previewScheme: 'auto',
   previewDensity: 'single',
   showContrastBadges: false,
+  cvd: 'none',
 }
 
 function load(): Persisted {
@@ -73,8 +75,14 @@ export const useStudioStore = defineStore('studio', () => {
   const previewDensity = ref<'single' | 'grid'>(saved.previewDensity)
   const showContrastBadges = ref(saved.showContrastBadges)
 
-  /** Which colour-vision deficiency the whole studio is being viewed through. */
-  const cvd = ref<CvdType>('none')
+  /**
+   * Which colour-vision deficiency the palette is being viewed through.
+   *
+   * Persisted: an accessibility review is not a single glance, and having the
+   * simulation silently reset on every reload made it look like the control
+   * had done nothing at all.
+   */
+  const cvd = ref<CvdType>(saved.cvd)
 
   /** The keyboard-shortcut cheat sheet. */
   const shortcutsOpen = ref(false)
@@ -92,6 +100,7 @@ export const useStudioStore = defineStore('studio', () => {
       previewScheme,
       previewDensity,
       showContrastBadges,
+      cvd,
     ],
     () => {
       try {
@@ -107,6 +116,7 @@ export const useStudioStore = defineStore('studio', () => {
             previewScheme: previewScheme.value,
             previewDensity: previewDensity.value,
             showContrastBadges: showContrastBadges.value,
+            cvd: cvd.value,
           } satisfies Persisted),
         )
       } catch {

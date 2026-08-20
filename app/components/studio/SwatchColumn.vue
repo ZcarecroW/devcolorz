@@ -120,7 +120,7 @@ function onKeydown(event: KeyboardEvent) {
 
 <template>
   <div
-    class="group/swatch relative flex min-h-0 min-w-0 flex-1 flex-col justify-end transition-[flex-grow] duration-300 ease-out"
+    class="group/swatch @container/swatch relative flex min-h-0 min-w-0 flex-1 flex-col justify-end overflow-hidden transition-[flex-grow] duration-300 ease-out"
     :class="[
       dragging && 'opacity-40',
       swatch.locked && 'ring-inset ring-2 ring-[color:var(--swatch-ink)]/35',
@@ -134,14 +134,24 @@ function onKeydown(event: KeyboardEvent) {
     @dragover.prevent="emit('dragOver', $event)"
     @drop.prevent="emit('drop', $event)"
   >
-    <!-- Controls: always visible when locked or focused, otherwise on hover. -->
+    <!--
+      Controls: visible on hover, or always when the swatch is locked.
+
+      Below about 9rem a horizontal row of five buttons is wider than the
+      column, and because the column used to allow overflow they spilled over
+      the neighbours — carrying this column's ink onto that column's
+      background, which is why they looked like the wrong light or dark
+      variant until you hovered the column they actually belonged to. The
+      column now clips, and the row becomes a vertical stack before it ever
+      needs to.
+    -->
     <div
-      class="absolute inset-x-0 top-0 flex items-start justify-between gap-1 p-2 opacity-0 transition-opacity duration-200 group-focus-within/swatch:opacity-100 group-hover/swatch:opacity-100"
+      class="absolute inset-x-0 top-0 flex items-start justify-between gap-1 p-2 opacity-0 transition-opacity duration-200 group-focus-within/swatch:opacity-100 group-hover/swatch:opacity-100 @max-[9rem]/swatch:flex-col @max-[9rem]/swatch:items-center @max-[9rem]/swatch:p-1"
       :class="swatch.locked && 'opacity-100'"
     >
       <button
         type="button"
-        class="cursor-grab rounded-md p-1.5 opacity-60 transition hover:bg-current/12 hover:opacity-100 active:cursor-grabbing"
+        class="cursor-grab rounded-md p-1.5 opacity-60 transition hover:bg-current/12 hover:opacity-100 active:cursor-grabbing @max-[5rem]/swatch:hidden"
         :aria-label="`Drag to reorder ${label}`"
         draggable="true"
         @dragstart="emit('dragStart', $event)"
@@ -150,7 +160,7 @@ function onKeydown(event: KeyboardEvent) {
         <GripVertical class="size-4" />
       </button>
 
-      <div class="flex items-center gap-0.5">
+      <div class="flex items-center gap-0.5 @max-[9rem]/swatch:flex-col">
         <button
           type="button"
           class="rounded-md p-1.5 opacity-70 transition hover:bg-current/12 hover:opacity-100"
@@ -197,16 +207,24 @@ function onKeydown(event: KeyboardEvent) {
 
     <div
       v-if="outOfGamut"
-      class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current/30 bg-current/10 px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase opacity-80"
+      class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current/30 bg-current/10 px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase opacity-80 @max-[7rem]/swatch:hidden"
       title="This color falls outside sRGB. It will be gamut-mapped on export to hex or rgb()."
     >
       Wide gamut
     </div>
 
-    <div class="flex flex-col items-center gap-1 p-3 pb-6 text-center sm:pb-8">
+    <!--
+      The value and name. Below 6rem there is no horizontal room for a hex at
+      all — it collapsed to an ellipsis and the name to a single letter — so
+      the block turns on its side and reads bottom-to-top, which is what a
+      narrow column has plenty of.
+    -->
+    <div
+      class="flex flex-col items-center gap-1 p-3 pb-6 text-center sm:pb-8 @max-[6rem]/swatch:flex-1 @max-[6rem]/swatch:justify-end @max-[6rem]/swatch:p-1 @max-[6rem]/swatch:pb-3 @max-[6rem]/swatch:[writing-mode:vertical-rl] @max-[6rem]/swatch:rotate-180"
+    >
       <button
         type="button"
-        class="flex w-full max-w-full items-center justify-center gap-1.5 rounded-md px-2 py-1 font-mono text-sm font-semibold tracking-wide tabular-nums transition hover:bg-current/12"
+        class="flex w-full max-w-full items-center justify-center gap-1.5 rounded-md px-2 py-1 font-mono text-sm font-semibold tracking-wide tabular-nums transition hover:bg-current/12 @max-[6rem]/swatch:w-auto @max-[6rem]/swatch:px-1 @max-[6rem]/swatch:py-2 @max-[6rem]/swatch:text-xs"
         :class="display.length > 22 ? 'text-[11px] sm:text-xs' : 'text-sm sm:text-base'"
         :style="{ opacity: chromeContrast > 45 ? 1 : 0.9 }"
         :aria-label="`Copy ${display}`"
@@ -219,8 +237,11 @@ function onKeydown(event: KeyboardEvent) {
           oklch() value would otherwise run straight over the next column.
         -->
         <span class="min-w-0 truncate">{{ display }}</span>
-        <Check v-if="copied" class="size-3.5" />
-        <Copy v-else class="size-3.5 opacity-0 transition group-hover/swatch:opacity-60" />
+        <Check v-if="copied" class="size-3.5 shrink-0" />
+        <Copy
+          v-else
+          class="size-3.5 shrink-0 opacity-0 transition group-hover/swatch:opacity-60 @max-[8rem]/swatch:hidden"
+        />
       </button>
 
       <input
@@ -236,7 +257,7 @@ function onKeydown(event: KeyboardEvent) {
       <button
         v-else
         type="button"
-        class="max-w-full truncate rounded px-1.5 py-0.5 text-xs opacity-70 transition hover:bg-current/12 hover:opacity-100"
+        class="max-w-full truncate rounded px-1.5 py-0.5 text-xs opacity-70 transition hover:bg-current/12 hover:opacity-100 @max-[4.5rem]/swatch:hidden"
         title="Click to rename"
         @click="startRename"
       >
