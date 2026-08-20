@@ -4,6 +4,7 @@
  * a distribution picker.
  */
 import { computed } from 'vue'
+import { refDebounced } from '@vueuse/core'
 import { Lock, LockOpen } from '@lucide/vue'
 import RangeSlider from '@/components/generator/RangeSlider.vue'
 import InfoHint from '@/components/common/InfoHint.vue'
@@ -16,7 +17,7 @@ import {
 } from '@/components/ui/select'
 import { channelGradient, gamutGaps, rangeMidpoint } from '@/lib/color/gradient'
 import { DISTRIBUTION_HINTS, DISTRIBUTION_LABELS } from '@/lib/color/random'
-import type { ChannelConstraint, ChannelDef, Distribution, SpaceId } from '@/lib/color/types'
+import type { ChannelConstraint, ChannelDef, Distribution, Range, SpaceId } from '@/lib/color/types'
 
 const props = defineProps<{
   space: SpaceId
@@ -24,6 +25,10 @@ const props = defineProps<{
   constraint: ChannelConstraint
   /** Midpoints of the other channels, used to paint this track. */
   others: Record<string, number>
+  /** Selected ranges of every channel, used to work out what is reachable. */
+  ranges: Record<string, Range>
+  /** Channels the user has pinned to a single value. */
+  fixed: Record<string, number>
 }>()
 
 const emit = defineEmits<{
@@ -31,10 +36,27 @@ const emit = defineEmits<{
   commit: []
 }>()
 
-const gradient = computed(() =>
-  channelGradient(props.space, props.channel.key, props.others),
+/*
+ * Both the gradient and the gamut hatch are expensive — 24 and ~1200 colour
+ * conversions respectively — and both depend on values that change on every
+ * pointermove. Recomputing them per frame is what made the track visibly
+ * flicker while dragging. Reading a debounced copy means the paint settles a
+ * beat after the drag instead of fighting it.
+ */
+const paintInput = computed(() => ({
+  space: props.space,
+  key: props.channel.key,
+  others: props.others,
+  ranges: props.ranges,
+  fixed: props.fixed,
+}))
+const settled = refDebounced(paintInput, 90)
+
+const gradient = computed(() => channelGradient(settled.value.space, settled.value.key, settled.value.others))
+
+const gaps = computed(() =>
+  gamutGaps(settled.value.space, settled.value.key, settled.value.ranges, settled.value.fixed),
 )
-const gaps = computed(() => gamutGaps(props.space, props.channel.key, props.others))
 
 /** Human-facing value, scaled and rounded per the channel definition. */
 function display(value: number): string {
@@ -106,8 +128,8 @@ function toggleLock() {
         <LockOpen v-else class="size-3.5" />
       </button>
 
-      <span class="font-mono text-xs font-semibold">{{ channel.label }}</span>
-      <span class="truncate text-xs text-muted-foreground">{{ channel.name }}</span>
+      <span class="shrink-0 font-mono text-xs font-semibold">{{ channel.label }}</span>
+      <span class="min-w-0 truncate text-xs text-muted-foreground">{{ channel.name }}</span>
       <InfoHint :title="channel.name" :text="channel.hint" wide />
 
       <span class="flex-1" />
@@ -161,9 +183,9 @@ function toggleLock() {
         @commit="emit('commit')"
       />
 
-      <div class="mt-1.5 flex items-center gap-1.5">
+      <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
         <input
-          class="w-[4.5rem] rounded-md border bg-background px-1.5 py-1 text-center font-mono text-[11px] tabular-nums"
+          class="w-[4.5rem] min-w-0 rounded-md border bg-background px-1.5 py-1 text-center font-mono text-[11px] tabular-nums"
           :value="display(constraint.range.min)"
           :aria-label="`${channel.name} from`"
           @change="
@@ -171,9 +193,9 @@ function toggleLock() {
             emit('commit')
           "
         />
-        <span class="text-xs text-muted-foreground">to</span>
+        <span class="shrink-0 text-xs text-muted-foreground">to</span>
         <input
-          class="w-[4.5rem] rounded-md border bg-background px-1.5 py-1 text-center font-mono text-[11px] tabular-nums"
+          class="w-[4.5rem] min-w-0 rounded-md border bg-background px-1.5 py-1 text-center font-mono text-[11px] tabular-nums"
           :value="display(constraint.range.max)"
           :aria-label="`${channel.name} to`"
           @change="
@@ -191,7 +213,7 @@ function toggleLock() {
             emit('commit')
           "
         >
-          <SelectTrigger size="sm" class="h-7 w-[8.5rem] text-[11px]" :aria-label="`${channel.name} distribution`">
+          <SelectTrigger size="sm" class="h-7 w-[8.5rem] min-w-0 shrink text-[11px]" :aria-label="`${channel.name} distribution`">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -210,10 +232,10 @@ function toggleLock() {
         v-if="constraint.distribution === 'gaussian' || constraint.distribution === 'edges'"
         class="mt-1.5 flex items-center gap-2"
       >
-        <span class="w-14 text-[11px] text-muted-foreground">Spread</span>
+        <span class="w-14 shrink-0 text-[11px] text-muted-foreground">Spread</span>
         <input
           type="range"
-          class="h-4 flex-1 accent-primary"
+          class="h-4 min-w-0 flex-1 accent-primary"
           min="0.2"
           max="3"
           step="0.05"

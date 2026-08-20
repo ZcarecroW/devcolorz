@@ -46,6 +46,26 @@ const midpoints = computed(() => {
   return out
 })
 
+/** Every channel's selected range, for working out what is actually reachable. */
+const ranges = computed(() => {
+  const out: Record<string, { min: number; max: number }> = {}
+  for (const channel of space.value.channels) {
+    const constraint = palette.constraints.channels[channel.key]
+    if (constraint) out[channel.key] = constraint.range
+  }
+  return out
+})
+
+/** Channels pinned to one value, which narrows the reachability test. */
+const fixedChannels = computed(() => {
+  const out: Record<string, number> = {}
+  for (const channel of space.value.channels) {
+    const constraint = palette.constraints.channels[channel.key]
+    if (constraint?.locked) out[channel.key] = constraint.value
+  }
+  return out
+})
+
 const previewSeed = ref(0x5eed)
 const previewCount = ref(48)
 
@@ -124,7 +144,7 @@ const seedText = computed({
         :model-value="palette.constraints.space"
         @update:model-value="palette.setSpace($event as SpaceId)"
       >
-        <SelectTrigger size="sm" class="flex-1" aria-label="Color space">
+        <SelectTrigger size="sm" class="min-w-0 flex-1" aria-label="Color space">
           <SelectValue />
         </SelectTrigger>
         <SelectContent class="max-h-96">
@@ -168,12 +188,14 @@ const seedText = computed({
         :channel="channel"
         :constraint="palette.constraints.channels[channel.key]"
         :others="midpoints"
+        :ranges="ranges"
+        :fixed="fixedChannels"
         @update="updateChannel(channel.key, $event)"
       />
     </div>
 
     <!-- Global constraints -->
-    <div class="grid gap-2.5 rounded-lg border bg-card/40 p-2.5">
+    <div class="grid grid-cols-[minmax(0,1fr)] gap-2.5 rounded-lg border bg-card/40 p-2.5">
       <div class="flex items-center gap-2">
         <Label class="flex w-28 shrink-0 items-center gap-1 text-xs">
           Distinctness
@@ -186,7 +208,7 @@ const seedText = computed({
         <input
           v-model.number="distinctness"
           type="range"
-          class="h-4 flex-1 accent-primary"
+          class="h-4 min-w-0 flex-1 accent-primary"
           min="0"
           max="40"
           step="1"
@@ -212,7 +234,7 @@ const seedText = computed({
             palette.constraints = { ...palette.constraints, gamut: $event as GamutStrategy }
           "
         >
-          <SelectTrigger size="sm" class="flex-1" aria-label="Gamut strategy">
+          <SelectTrigger size="sm" class="min-w-0 flex-1" aria-label="Gamut strategy">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -238,7 +260,7 @@ const seedText = computed({
         </Label>
         <input
           v-model="seedText"
-          class="flex-1 rounded-md border bg-background px-2 py-1 font-mono text-[11px] tabular-nums"
+          class="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 font-mono text-[11px] tabular-nums"
           placeholder="random"
           aria-label="Generator seed"
           inputmode="numeric"

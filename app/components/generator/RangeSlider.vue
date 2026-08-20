@@ -8,10 +8,22 @@
  * through zero. `340°→20°` has to mean "the reds", which is the range people
  * actually want, and no off-the-shelf component expresses it.
  *
+ * Interaction model:
+ *   • drag a thumb              — move that edge
+ *   • drag the selected band    — translate the whole range, keeping its width
+ *   • click the dimmed track    — jump the nearer thumb to that point
+ *
+ * Translating used to require holding Alt, which was a mistake: the band sits
+ * on top of the track and covers most of it, so a plain drag inside the
+ * selection hit an element whose only handler was modifier-gated and nothing
+ * happened at all. The range simply refused to move. Dragging the band now
+ * works unmodified, which is also what the grab cursor has been promising.
+ *
  * Accessibility: a `group` containing two real `slider`s, each with its own
  * value and label, so the whole thing is operable and announced from the
- * keyboard. Shift+arrow takes larger steps; Alt+drag on the selected band
- * translates the whole range without resizing it.
+ * keyboard. Shift+arrow takes larger steps. The thumbs are 16px for looks but
+ * carry a 32px invisible hit area, because a 16px target fails WCAG 2.5.8 and
+ * is genuinely hard to hit.
  */
 import { computed, ref } from 'vue'
 import type { Range } from '@/lib/color/types'
@@ -28,8 +40,8 @@ const props = withDefaults(
     /** CSS background painted along the track, showing what the channel does. */
     gradient?: string
     /**
-     * Positions (0–1) where the channel leaves the sRGB gamut, drawn as a
-     * hatch so the user can see which part of the range they cannot have.
+     * Stretches (0–1) of the channel that no combination of the other
+     * channels' selected ranges can reach, drawn as a hatch.
      */
     outOfGamut?: Array<[start: number, end: number]>
     label: string
@@ -209,18 +221,18 @@ function onTrackPointerDown(event: PointerEvent) {
     >
       <!-- Dim everything outside the selection rather than hiding it: seeing
            the rejected part of the channel is what makes the range legible. -->
-      <div class="absolute inset-0 bg-background/70 backdrop-grayscale-[0.4]" />
+      <div class="pointer-events-none absolute inset-0 bg-background/70 backdrop-grayscale-[0.4]" />
       <div
         v-for="(band, i) in bands"
         :key="i"
-        class="absolute inset-y-0"
+        class="pointer-events-none absolute inset-y-0"
         :style="{ left: `${band.left}%`, width: `${band.width}%`, background: gradient ?? 'var(--primary)' }"
       />
       <!-- Out-of-gamut hatching -->
       <div
         v-for="(gap, i) in outOfGamut ?? []"
         :key="`g${i}`"
-        class="absolute inset-y-0 opacity-70"
+        class="pointer-events-none absolute inset-y-0 opacity-70"
         :style="{
           left: `${gap[0] * 100}%`,
           width: `${(gap[1] - gap[0]) * 100}%`,
@@ -231,13 +243,13 @@ function onTrackPointerDown(event: PointerEvent) {
       />
     </div>
 
-    <!-- Alt-drag surface: translate the whole band without resizing it. -->
+    <!-- Drag surface: translates the whole band without resizing it. -->
     <div
       v-for="(band, i) in bands"
       :key="`b${i}`"
       class="absolute top-1/2 h-5 -translate-y-1/2 cursor-grab active:cursor-grabbing"
       :style="{ left: `${band.left}%`, width: `${band.width}%` }"
-      @pointerdown.alt.stop="onPointerDown($event, 'band')"
+      @pointerdown.stop="onPointerDown($event, 'band')"
     />
 
     <button
@@ -245,7 +257,7 @@ function onTrackPointerDown(event: PointerEvent) {
       :key="thumb"
       type="button"
       role="slider"
-      class="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground shadow-sm transition-transform duration-100 hover:scale-115 focus-visible:scale-115 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      class="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-full border-2 border-background bg-foreground shadow-sm transition-transform duration-100 before:absolute before:-inset-2 before:content-[''] hover:scale-115 focus-visible:scale-115 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       :class="activeThumb === thumb && 'scale-115'"
       :style="{ left: `${toRatio(modelValue[thumb]) * 100}%` }"
       :aria-label="`${label} ${thumb === 'min' ? 'from' : 'to'}`"
@@ -261,7 +273,7 @@ function onTrackPointerDown(event: PointerEvent) {
 
     <span
       v-if="wrapped"
-      class="pointer-events-none absolute -top-0.5 right-0 rounded-sm bg-primary/15 px-1 text-[9px] font-medium text-primary"
+      class="pointer-events-none absolute -top-1 right-0 rounded-sm bg-primary/15 px-1 text-[9px] font-medium text-primary"
       title="This range wraps through 0°, so it selects the arc across the origin rather than everything else."
     >
       wraps

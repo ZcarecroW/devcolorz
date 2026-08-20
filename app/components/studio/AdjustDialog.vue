@@ -436,7 +436,7 @@ watchDebounced(colorKey, () => void fetchName(), { debounce: 220 })
                 text="The same color written every way this app can export it. Click a line to copy it. Hex and rgb() clip anything outside sRGB, so a wide-gamut color reads differently there than in oklch() — which is why both are shown rather than one."
               />
             </div>
-            <div class="grid gap-0.5">
+            <div class="grid grid-cols-[minmax(0,1fr)] gap-0.5">
               <button
                 v-for="item in notations"
                 :key="item.id"
@@ -657,13 +657,12 @@ watchDebounced(colorKey, () => void fetchName(), { debounce: 220 })
 
       <!-- Contrast -->
       <div v-if="swatch" class="flex min-w-0 flex-col gap-2">
-        <div class="flex items-center gap-2">
-          <Label class="text-xs">Contrast</Label>
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Label class="shrink-0 text-xs">Contrast</Label>
           <InfoHint :title="studio.metric === 'apca' ? 'APCA' : 'WCAG 2'" wide :text="METRIC_HINTS[studio.metric]" />
-          <span class="text-[11px] text-muted-foreground">
+          <span class="min-w-0 flex-1 text-[11px] text-muted-foreground">
             this color as text on each background
           </span>
-          <span class="flex-1" />
           <InfoHint
             title="Make readable"
             wide
@@ -671,7 +670,7 @@ watchDebounced(colorKey, () => void fetchName(), { debounce: 220 })
           />
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="scroll-slim min-w-0 max-w-full overflow-x-auto">
           <table class="w-full text-xs">
             <caption class="sr-only">
               Contrast of this color against white, black and every other color in the palette
@@ -727,9 +726,15 @@ watchDebounced(colorKey, () => void fetchName(), { debounce: 220 })
                 <td class="px-2 py-1.5 text-right font-mono tabular-nums">
                   {{ Math.round(row.lc) }}
                 </td>
-                <td class="max-w-[14rem] px-2 py-1.5">
+                <td class="px-2 py-1.5">
+                  <!--
+                    `truncate` needs a block box and a width to work against:
+                    on an inline span it does nothing, and a max-width on the
+                    cell is ignored under automatic table layout, so this prose
+                    pushed the table wider than the dialog.
+                  -->
                   <span
-                    class="truncate"
+                    class="block max-w-[14rem] truncate"
                     :class="row.verdict.ok ? 'text-muted-foreground' : 'text-destructive'"
                     :title="row.verdict.use"
                   >

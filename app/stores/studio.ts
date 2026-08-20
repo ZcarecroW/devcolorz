@@ -14,6 +14,17 @@ import type { ContrastMetric } from '@/lib/color/contrast'
 
 export type PanelId = 'generate' | 'harmony' | 'scales' | 'image' | 'a11y' | 'export'
 
+/**
+ * How a preview decides between a light and a dark scheme.
+ *
+ * `auto` follows the app's own appearance — which is what a monitor icon
+ * beside Light and Dark means to everyone who has ever used one. `palette` is
+ * the other useful question: which scheme is this palette actually built for?
+ * They were the same option once, and the mismatch showed: with the system in
+ * dark mode, "auto" cheerfully rendered a light preview.
+ */
+export type PreviewScheme = 'auto' | 'light' | 'dark' | 'palette'
+
 const KEY = 'devcolorz:studio'
 
 interface Persisted {
@@ -23,7 +34,7 @@ interface Persisted {
   rightPanelOpen: boolean
   metric: ContrastMetric
   previewTemplate: string
-  previewScheme: 'auto' | 'light' | 'dark'
+  previewScheme: PreviewScheme
   previewDensity: 'single' | 'grid'
   showContrastBadges: boolean
 }
@@ -58,7 +69,7 @@ export const useStudioStore = defineStore('studio', () => {
   const rightPanelOpen = ref(saved.rightPanelOpen)
   const metric = ref<ContrastMetric>(saved.metric)
   const previewTemplate = ref(saved.previewTemplate)
-  const previewScheme = ref<'auto' | 'light' | 'dark'>(saved.previewScheme)
+  const previewScheme = ref<PreviewScheme>(saved.previewScheme)
   const previewDensity = ref<'single' | 'grid'>(saved.previewDensity)
   const showContrastBadges = ref(saved.showContrastBadges)
 

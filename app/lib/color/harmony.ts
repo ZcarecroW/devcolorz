@@ -38,7 +38,12 @@ export interface HarmonyOptions {
   wheel: HueWheel
   /** How many colors the result should contain. Harmonies that have a natural size clamp to it. */
   count: number
-  /** Degrees of separation for the harmonies that take a parameter. */
+  /**
+   * Degrees of separation, for the two schemes that have a separation to set:
+   * the step between neighbours in `analogous`, and the distance of the
+   * satellites from the complement in `split-complementary`. Every other
+   * scheme has fixed geometry and ignores this.
+   */
   angle: number
   /** Keep chroma and lightness of the seed, or vary them for a richer set. */
   vary: boolean
@@ -233,6 +238,15 @@ export function harmony(seed: ColorInput, id: HarmonyId, options: Partial<Harmon
       })
       return finish(colors)
     }
+    case 'split-complementary': {
+      // The two satellites sit `angle` degrees either side of the complement,
+      // so the spread control means something here as well as for analogous:
+      // at 30 degrees this is the classic split, and near 90 it collapses
+      // toward a plain complementary pair.
+      const offsets = fitOffsets([0, 180 - opts.angle, 180 + opts.angle], count, opts.angle)
+      const colors = offsets.map((offset) => withHue(base, rotateHue(hue, offset, opts.wheel)))
+      return finish(opts.vary ? colors.map((c, i) => varyTone(c, i, colors.length)) : colors)
+    }
     default: {
       const offsets = fitOffsets(OFFSETS[id] ?? [0, 180], count, opts.angle)
       const colors = offsets.map((offset) => withHue(base, rotateHue(hue, offset, opts.wheel)))
@@ -286,3 +300,6 @@ export const WHEEL_HINTS: Record<HueWheel, string> = {
 }
 
 export const HARMONY_IDS = Object.keys(HARMONY_LABELS) as HarmonyId[]
+
+/** The schemes whose geometry the spread control actually changes. */
+export const ANGLE_HARMONIES: HarmonyId[] = ['analogous', 'split-complementary']

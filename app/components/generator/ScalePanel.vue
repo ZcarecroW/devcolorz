@@ -226,7 +226,7 @@ function replacePalette() {
     </div>
 
     <!-- Shape -->
-    <div class="grid gap-2.5 rounded-lg border bg-card/40 p-2.5">
+    <div class="grid grid-cols-[minmax(0,1fr)] gap-2.5 rounded-lg border bg-card/40 p-2.5">
       <div class="flex items-center gap-2">
         <Label class="flex w-24 shrink-0 items-center gap-1 text-xs">
           Preset

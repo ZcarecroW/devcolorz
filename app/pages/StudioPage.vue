@@ -38,6 +38,7 @@ import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { usePaletteStore } from '@/stores/palette'
 import { useStudioStore } from '@/stores/studio'
 import { decodeState } from '@/lib/palette/url'
+import { formatColor } from '@/lib/color/convert'
 
 const palette = usePaletteStore()
 const studio = useStudioStore()
@@ -56,12 +57,34 @@ const panels = [
   { value: 'export', label: 'Export', icon: Save },
 ] as const
 
-/** Load whatever the URL carries, once, before the first roll. */
+/**
+ * Restore the palette on mount.
+ *
+ * The guard matters: this component remounts every time you visit the theme
+ * editor and come back, and re-initialising unconditionally rolled a brand-new
+ * random palette each time. The work in progress simply vanished — and because
+ * the replacement had a different average lightness, the preview would also
+ * flip between light and dark for no reason the user could see.
+ *
+ * A palette in the URL always wins; otherwise an existing palette is kept, and
+ * only a genuinely empty store gets a fresh roll.
+ */
 onMounted(async () => {
   const encoded = route.params.state as string | undefined
   const initial = encoded ? await decodeState(encoded) : null
-  palette.init(initial)
-  if (initial) toast.success(`Loaded ${initial.colors.length} colors from the link`)
+
+  if (initial) {
+    const unchanged =
+      palette.count === initial.colors.length &&
+      palette.hexes.join() === initial.colors.map((c) => formatColor(c, 'hex')).join()
+    if (!unchanged) {
+      palette.init(initial)
+      toast.success(`Loaded ${initial.colors.length} colors from the link`)
+    }
+    return
+  }
+
+  if (!palette.count) palette.init(null)
 })
 
 useKeyboardShortcuts()
@@ -119,7 +142,7 @@ void router
       <!-- Controls -->
       <aside
         v-if="leftOpen"
-        class="scroll-slim flex w-full shrink-0 flex-col overflow-y-auto border-r bg-sidebar/40 lg:w-[22rem] xl:w-[24rem]"
+        class="scroll-slim flex w-full shrink-0 flex-col overflow-x-hidden overflow-y-auto border-r bg-sidebar/40 [scrollbar-gutter:stable] lg:w-[22rem] xl:w-[24rem]"
         :class="!wide && 'absolute inset-y-0 left-0 z-30 bg-sidebar shadow-xl'"
       >
         <Tabs v-model="studio.activePanel" class="flex min-h-0 flex-1 flex-col gap-0">
@@ -135,7 +158,7 @@ void router
             </TabsTrigger>
           </TabsList>
 
-          <div class="min-h-0 flex-1 p-3">
+          <div class="min-w-0 min-h-0 flex-1 p-3">
             <TabsContent value="generate" class="mt-0"><GeneratorPanel /></TabsContent>
             <TabsContent value="harmony" class="mt-0"><HarmonyPanel /></TabsContent>
             <TabsContent value="scales" class="mt-0"><ScalePanel /></TabsContent>
@@ -176,7 +199,7 @@ void router
       <!-- Previews -->
       <aside
         v-if="rightOpen && wide"
-        class="scroll-slim w-[26rem] shrink-0 overflow-y-auto border-l bg-sidebar/40 xl:w-[32rem] 2xl:w-[40rem]"
+        class="scroll-slim w-[26rem] shrink-0 overflow-x-hidden overflow-y-auto border-l bg-sidebar/40 [scrollbar-gutter:stable] xl:w-[32rem] 2xl:w-[40rem]"
       >
         <PreviewPane />
       </aside>

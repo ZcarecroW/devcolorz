@@ -10,7 +10,7 @@
 import { formatColor, fromChannelValues } from './convert'
 import { isInGamut } from './gamut'
 import { getSpace } from './spaces'
-import type { SpaceId } from './types'
+import type { Range, SpaceId } from './types'
 
 /**
  * A CSS gradient across one channel's domain.
@@ -40,27 +40,80 @@ export function channelGradient(
 }
 
 /**
- * The stretches of a channel that fall outside sRGB, as `[start, end]` pairs
- * in 0–1 track coordinates. Drawn as hatching so the range panel shows which
- * part of the space is aspirational.
+ * The stretches of a channel that are unreachable, as `[start, end]` pairs in
+ * 0–1 track coordinates.
+ *
+ * The subtlety that makes this useful rather than misleading: a position is
+ * only marked unreachable if **no** combination of the other channels' selected
+ * ranges lands in gamut. Testing a single midpoint instead — which is what the
+ * first version did — reports almost the whole lightness axis as out of gamut
+ * the moment the hue midpoint happens to sit somewhere sRGB is narrow, and the
+ * hatching then twitches across the track as any other slider moves. Sampling
+ * the ranges answers the question the user is actually asking: "given my other
+ * constraints, can I have this lightness at all?"
  */
 export function gamutGaps(
   space: SpaceId,
   channelKey: string,
-  others: Record<string, number>,
-  steps = 72,
+  ranges: Record<string, Range>,
+  fixed: Record<string, number> = {},
+  steps = 48,
 ): Array<[number, number]> {
   const def = getSpace(space)
   const channel = def.channels.find((c) => c.key === channelKey)
   if (!channel) return []
+
+  const others = def.channels.filter((c) => c.key !== channelKey)
+
+  /** A handful of probes across each other channel's selected range. */
+  const probesFor = (key: string): number[] => {
+    if (key in fixed) return [fixed[key]]
+    const range = ranges[key]
+    const other = others.find((c) => c.key === key)
+    if (!range || !other) return [0]
+    const probes: number[] = []
+    const count = 4
+    for (let i = 0; i <= count; i++) {
+      const t = i / count
+      if (other.cyclic && range.min > range.max) {
+        const span = other.max - range.min + range.max
+        probes.push((range.min + t * span) % other.max)
+      } else {
+        probes.push(range.min + t * (range.max - range.min))
+      }
+    }
+    return probes
+  }
+
+  const probeSets = others.map((c) => ({ key: c.key, values: probesFor(c.key) }))
+
+  const reachable = (value: number): boolean => {
+    // Cartesian product of the probe sets, short-circuiting on the first hit.
+    const indices = new Array(probeSets.length).fill(0)
+    for (;;) {
+      const candidate: Record<string, number> = { [channelKey]: value }
+      probeSets.forEach((set, i) => {
+        candidate[set.key] = set.values[indices[i]]
+      })
+      if (isInGamut(fromChannelValues(space, candidate))) return true
+
+      let i = probeSets.length - 1
+      while (i >= 0) {
+        indices[i]++
+        if (indices[i] < probeSets[i].values.length) break
+        indices[i] = 0
+        i--
+      }
+      if (i < 0) return false
+    }
+  }
 
   const gaps: Array<[number, number]> = []
   let start: number | null = null
   for (let i = 0; i <= steps; i++) {
     const t = i / steps
     const value = channel.min + t * (channel.max - channel.min)
-    const color = fromChannelValues(space, { ...others, [channelKey]: value })
-    const outside = !isInGamut(color)
+    const outside = !reachable(value)
     if (outside && start === null) start = t
     if (!outside && start !== null) {
       gaps.push([start, t])

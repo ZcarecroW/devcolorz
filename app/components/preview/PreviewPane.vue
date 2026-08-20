@@ -10,16 +10,7 @@
  * density can mount every template at once against the same variables.
  */
 import { computed, defineAsyncComponent, ref, type Component } from 'vue'
-import {
-  CircleAlert,
-  CircleCheck,
-  LayoutGrid,
-  Monitor,
-  Moon,
-  Square,
-  Sun,
-  TriangleAlert,
-} from '@lucide/vue'
+import { CircleAlert, CircleCheck, LayoutGrid, Monitor, Moon, Square, Sun, TriangleAlert, Wand2 } from '@lucide/vue'
 import { useElementSize } from '@vueuse/core'
 import InfoHint from '@/components/common/InfoHint.vue'
 import {
@@ -42,9 +33,22 @@ import { apca, apcaVerdict, wcag, wcagLevel } from '@/lib/color/contrast'
 import { assignRoles, auditRoles, rolesToCssVars, type RoleKey } from '@/lib/color/roles'
 import { usePaletteStore } from '@/stores/palette'
 import { useStudioStore } from '@/stores/studio'
+import { useThemeStore } from '@/stores/theme'
 
 const palette = usePaletteStore()
 const studio = useStudioStore()
+const theme = useThemeStore()
+
+/**
+ * The colour-vision filter, applied to the preview surface as well as the
+ * palette strip. Simulating only the strip made the toggle look broken: the
+ * previews are the largest thing on screen and the whole point of judging a
+ * palette in context, so leaving them unfiltered meant most of the interface
+ * carried on lying to you.
+ */
+const cvdFilter = computed(() =>
+  studio.cvd !== 'none' ? `url(#cvd-${studio.cvd})` : undefined,
+)
 
 /**
  * The metric is deliberately not forwarded from the studio. `textTarget` and
@@ -53,16 +57,32 @@ const studio = useStudioStore()
  * derived. The badge strip below does honour the studio's metric, which is
  * where the choice actually belongs.
  */
-const roles = computed(() => assignRoles(palette.colors, { scheme: studio.previewScheme }))
+/**
+ * Resolve the preview scheme.
+ *
+ * `auto` defers to the app's appearance, so a dark interface previews a dark
+ * theme; `palette` hands the decision to the engine, which reads the palette's
+ * mean lightness and picks whichever it already leans toward.
+ */
+const resolvedScheme = computed<'auto' | 'light' | 'dark'>(() => {
+  if (studio.previewScheme === 'palette') return 'auto'
+  if (studio.previewScheme === 'auto') return theme.mode
+  return studio.previewScheme
+})
+
+const roles = computed(() => assignRoles(palette.colors, { scheme: resolvedScheme.value }))
 
 /** Custom properties inherit, so one wrapper paints the template and the tiles. */
 const surfaceStyle = computed(() => {
-  const vars: Record<`--${string}`, string> = {}
+  const vars: Record<string, string> = {}
   for (const [key, value] of Object.entries(
     rolesToCssVars(roles.value, (color) => formatColor(color, 'oklch')),
   )) {
-    vars[key as `--${string}`] = value
+    vars[key] = value
   }
+  // The simulation rides on the same wrapper that carries the role variables,
+  // so it covers the single view and every tile in the grid at once.
+  if (cvdFilter.value) vars.filter = cvdFilter.value
   return vars
 })
 
@@ -95,9 +115,10 @@ function componentFor(entry: PreviewTemplate): Component {
 const thin = computed(() => palette.count < active.value.minColors)
 
 const SCHEMES = [
-  { id: 'auto', label: 'Auto', icon: Monitor, hint: 'Let the palette decide' },
+  { id: 'auto', label: 'Auto', icon: Monitor, hint: "Follow this app's appearance" },
   { id: 'light', label: 'Light', icon: Sun, hint: 'Force a light scheme' },
   { id: 'dark', label: 'Dark', icon: Moon, hint: 'Force a dark scheme' },
+  { id: 'palette', label: 'Palette', icon: Wand2, hint: 'Let the palette decide' },
 ] as const
 
 const DENSITIES = [
@@ -299,7 +320,7 @@ const derivedRoles = computed(() => legend.value.filter((entry) => entry.derived
       <InfoHint
         title="Light or dark"
         wide
-        text="Auto reads the palette's mean lightness and picks the scheme it already leans toward. Forcing the other one is the useful test: a palette built for a white page usually loses its accents on a dark background, and this is where you find out before the dark-mode ticket lands."
+        text="Auto follows this app's own light or dark setting, so the preview matches the interface around it. Palette instead reads the palette's mean lightness and picks whichever scheme it already leans toward. Forcing the opposite one is the useful test: a palette built for a white page usually loses its accents on a dark background, and this is where you find that out rather than in the dark-mode ticket."
       />
 
       <div
@@ -456,7 +477,7 @@ const derivedRoles = computed(() => legend.value.filter((entry) => entry.derived
           text="A palette of five colors cannot fill eighteen roles honestly, so surfaces, borders, hover states and any missing status color are computed from the colors you do have. Derived roles are marked with a dashed outline. If a role you care about is derived, add a color near that hue and it will be adopted."
         />
         <span class="ml-auto text-[10px] text-muted-foreground">
-          scheme: {{ roles.scheme }}{{ studio.previewScheme === 'auto' ? ' (auto)' : '' }}
+          scheme: {{ roles.scheme }}<template v-if="studio.previewScheme === 'auto'"> (following the app)</template><template v-else-if="studio.previewScheme === 'palette'"> (from the palette)</template>
         </span>
       </div>
       <div class="flex flex-wrap gap-1">
