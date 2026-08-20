@@ -41,3 +41,6 @@ docs/research/raw/
 server/storage/
 server/config.php
 scratch/
+
+# early research artifacts, kept locally only
+docs/research/

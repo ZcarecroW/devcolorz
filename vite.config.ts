@@ -37,7 +37,10 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': {
-        target: process.env.DEVCOLORZ_API ?? 'https://devcolorz.fabula.vision',
+        // Point this at wherever the PHP backend is running. The local
+        // default matches scripts/dev-router.php; set DEVCOLORZ_API to develop
+        // the front end against a deployed instance instead.
+        target: process.env.DEVCOLORZ_API ?? 'http://127.0.0.1:8080',
         changeOrigin: true,
         secure: true,
       },
