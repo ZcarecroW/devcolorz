@@ -86,7 +86,11 @@ final class Auth
      */
     public static function publicUser(array $row): array
     {
-        $prefs = json_decode((string) ($row['prefs_json'] ?? '{}'), true);
+        // json_decode('{}', true) yields [], which json_encode then emits as a
+        // JSON array — so an empty prefs object reaches the client as `[]` and
+        // any `prefs.foo` read in TypeScript is a type lie. Force an object.
+        $decoded = json_decode((string) ($row['prefs_json'] ?? '{}'), true);
+        $prefs = is_array($decoded) && $decoded !== [] ? $decoded : new \stdClass();
         return [
             'uuid'          => (string) $row['uuid'],
             'email'         => (string) $row['email'],
@@ -95,7 +99,7 @@ final class Auth
             'status'        => (string) $row['status'],
             'emailVerified' => ($row['email_verified_at'] ?? null) !== null,
             'createdAt'     => (int) $row['created_at'],
-            'prefs'         => is_array($prefs) ? $prefs : [],
+            'prefs'         => $prefs,
         ];
     }
 

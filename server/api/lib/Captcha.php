@@ -135,7 +135,7 @@ final class Captcha
                 ]);
                 $response = curl_exec($ch);
                 $ok = $response !== false && curl_getinfo($ch, CURLINFO_RESPONSE_CODE) === 200;
-                curl_close($ch);
+                // No curl_close(): deprecated in PHP 8.5, and a no-op since 8.0.
                 return $ok ? (string) $response : null;
             }
         }

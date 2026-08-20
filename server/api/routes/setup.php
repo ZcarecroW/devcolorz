@@ -149,7 +149,23 @@ function registerSetupRoutes(Router $router): void
         @unlink($file);
         @file_put_contents(Paths::installedMarker(), date('c') . "\n");
 
-        $exposure = SelfTest::exposure();
+        // The exposure probe makes live HTTP requests back to this host, so it
+        // is the most fragile thing in the whole installer — and it runs after
+        // the account already exists. It must never be able to turn a
+        // successful install into a failed one.
+        try {
+            $exposure = SelfTest::exposure();
+        } catch (\Throwable $e) {
+            error_log('[devcolorz] exposure probe failed: ' . $e->getMessage());
+            $exposure = [[
+                'id'       => 'probe',
+                'label'    => 'Exposure self-test',
+                'required' => false,
+                'ok'       => false,
+                'detail'   => 'The self-test could not complete: ' . $e->getMessage()
+                    . ' Check storage/ and config.php manually in a browser — neither should be downloadable.',
+            ]];
+        }
         Audit::log('setup.install', $email);
 
         // Sign the new administrator straight in: asking them to re-enter the

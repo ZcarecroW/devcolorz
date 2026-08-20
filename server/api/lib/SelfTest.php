@@ -247,7 +247,8 @@ final class SelfTest
                 ]);
                 curl_exec($ch);
                 $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-                curl_close($ch);
+                // No curl_close(): the handle is an object that frees itself,
+                // and the function is deprecated as of PHP 8.5.
                 return $status;
             }
         }

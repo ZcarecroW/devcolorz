@@ -54,6 +54,10 @@ interface SetupCheck {
 interface SetupStatus {
   installed: boolean
   checks: SetupCheck[]
+  /** Where the server wrote the setup code, shown so the operator can find it. */
+  challengeFile?: string | null
+  /** True when every required check passes. */
+  ready?: boolean
 }
 
 interface InstallResult {
@@ -83,6 +87,17 @@ const password = ref('')
 const siteName = ref('DevColorz')
 const submitting = ref(false)
 const formError = ref<string | null>(null)
+const challengeCode = ref('')
+
+/**
+ * The fields this form actually renders an error under.
+ *
+ * Anything the server complains about that is not in this list gets promoted
+ * to the form-level message instead of disappearing — which is exactly what
+ * happened when the challenge-code field was missing entirely and the only
+ * feedback was a generic "some fields need attention".
+ */
+const RENDERED_FIELDS = ['siteName', 'displayName', 'email', 'password', 'challengeCode']
 const fieldErrors = ref<Record<string, string>>({})
 const result = ref<InstallResult | null>(null)
 const copied = ref<string | null>(null)
@@ -149,6 +164,7 @@ async function install() {
     result.value = await api.post<InstallResult>(
       '/setup/install',
       {
+        challengeCode: challengeCode.value.trim(),
         email: email.value.trim(),
         password: password.value,
         displayName: displayName.value.trim(),
@@ -168,7 +184,13 @@ async function install() {
   } catch (err) {
     if (err instanceof ApiError) {
       fieldErrors.value = err.problem.errors ?? {}
-      formError.value = err.message
+      // An error keyed to a field this form does not render would otherwise
+      // vanish, leaving only "Some fields need attention" and no way to find
+      // out which. Fold anything unmatched into the form-level message.
+      const unmatched = Object.entries(fieldErrors.value)
+        .filter(([key]) => !RENDERED_FIELDS.includes(key))
+        .map(([, message]) => message)
+      formError.value = unmatched.length ? unmatched.join(' ') : err.message
     } else {
       formError.value = 'The install request did not reach the server.'
     }
@@ -420,6 +442,37 @@ async function copy(text: string, key: string, message: string) {
 
           <form class="flex flex-col gap-4" novalidate @submit.prevent="install">
             <fieldset class="contents" :disabled="!allPassed || submitting">
+              <div class="flex flex-col gap-1.5">
+                <div class="flex items-center gap-2">
+                  <Label for="setup-code">Setup code</Label>
+                  <InfoHint
+                    title="Why a code at all"
+                    wide
+                    text="The gap between uploading these files and creating the first administrator is the one moment anybody who knows the URL could claim this installation. So the server wrote a random code into a file on disk and will not proceed without it. Reading that file proves you are the person who uploaded the app, not someone who arrived first. It expires an hour after it is created — press Re-check above to get a fresh one."
+                  />
+                </div>
+                <Input
+                  id="setup-code"
+                  v-model="challengeCode"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="XXXX-XXXX-XXXX"
+                  class="font-mono tracking-wider"
+                  :aria-invalid="Boolean(fieldErrors.challengeCode)"
+                />
+                <p class="text-xs text-muted-foreground">
+                  Open
+                  <code class="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                    {{ status?.challengeFile ?? 'storage/setup-code.txt' }}
+                  </code>
+                  over FTP or in your host's file manager and copy what is inside. Dashes and case
+                  are ignored.
+                </p>
+                <p v-if="fieldErrors.challengeCode" class="text-xs text-destructive" role="alert">
+                  {{ fieldErrors.challengeCode }}
+                </p>
+              </div>
+
               <div class="flex flex-col gap-1.5">
                 <Label for="setup-site">Site name</Label>
                 <Input

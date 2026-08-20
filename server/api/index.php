@@ -51,11 +51,22 @@ set_exception_handler(static function (Throwable $e): void {
 });
 
 set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
-    // Turn warnings into exceptions so a silently-failing write cannot look
-    // like success. Suppressed expressions (`@`) still opt out.
+    // Suppressed expressions (`@`) opt out.
     if ((error_reporting() & $severity) === 0) {
         return false;
     }
+    // Deprecations are logged, never thrown. A deprecation is a message about
+    // a future version of PHP, not a failure of this request, and promoting
+    // one to an exception means a point release of the language can take the
+    // whole API down. That is not hypothetical: PHP 8.5 deprecated
+    // curl_close(), and turning that notice into an exception made the
+    // installer return 500 *after* it had already created the account.
+    if ($severity === E_DEPRECATED || $severity === E_USER_DEPRECATED) {
+        error_log('[devcolorz deprecated] ' . $message . ' @ ' . $file . ':' . $line);
+        return true;
+    }
+    // Everything else does become an exception, so a silently-failing write
+    // cannot look like success.
     throw new \ErrorException($message, 0, $severity, $file, $line);
 });
 
