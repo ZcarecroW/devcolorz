@@ -37,7 +37,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { keys: ['Ctrl', 'Shift', 'Z'], label: 'Redo', group: 'Palette' },
   { keys: ['Ctrl', 'Shift', 'C'], label: 'Copy the palette as CSS', group: 'Clipboard' },
   { keys: ['Ctrl', 'Shift', 'L'], label: 'Copy the share link', group: 'Clipboard' },
-  { keys: ['Ctrl', 'V'], label: 'Paste colors from the clipboard', group: 'Clipboard' },
+  { keys: ['Ctrl', 'V'], label: 'Paste colors, or an image, from the clipboard', group: 'Clipboard' },
   { keys: ['Ctrl', 'K'], label: 'Open the command palette', group: 'View' },
   { keys: ['['], label: 'Show or hide the controls', group: 'View' },
   { keys: [']'], label: 'Show or hide the previews', group: 'View' },
@@ -74,14 +74,24 @@ export function useKeyboardShortcuts() {
     toast.success('CSS copied')
   }
 
-  async function pasteColors() {
-    try {
-      const text = await navigator.clipboard.readText()
-      const count = palette.importFromText(text)
-      if (count) toast.success(`Imported ${count} colors`)
-      else toast.error('No colors found in the clipboard')
-    } catch {
-      toast.error('Could not read the clipboard')
+  /**
+   * Import colors from pasted text.
+   *
+   * Bound to the `paste` event rather than to Ctrl+V, and it steps aside when
+   * the clipboard carries an image: pasting a screenshot is meant for the image
+   * panel, and handling both produced a spurious "no colors found" every time.
+   */
+  function onPaste(event: ClipboardEvent) {
+    if (isTypingTarget(event.target)) return
+    const items = event.clipboardData?.items
+    if (items && Array.from(items).some((item) => item.type.startsWith('image/'))) return
+
+    const text = event.clipboardData?.getData('text/plain') ?? ''
+    if (!text.trim()) return
+    const count = palette.importFromText(text)
+    if (count) {
+      event.preventDefault()
+      toast.success(`Imported ${count} colors`)
     }
   }
 
@@ -118,9 +128,6 @@ export function useKeyboardShortcuts() {
               toast.success('Link copied')
             })
           }
-          return
-        case 'v':
-          void pasteColors()
           return
         default:
           return
@@ -183,8 +190,15 @@ export function useKeyboardShortcuts() {
     }
   }
 
-  onMounted(() => window.addEventListener('keydown', onKeydown, { passive: false }))
-  onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+  onMounted(() => {
+    // Not passive: Space scrolls the page unless the handler can prevent it.
+    window.addEventListener('keydown', onKeydown, { passive: false })
+    window.addEventListener('paste', onPaste)
+  })
+  onBeforeUnmount(() => {
+    window.removeEventListener('keydown', onKeydown)
+    window.removeEventListener('paste', onPaste)
+  })
 
-  return { copyCss, pasteColors }
+  return { copyCss }
 }

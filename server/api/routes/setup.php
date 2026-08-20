@@ -51,7 +51,12 @@ function registerSetupRoutes(Router $router): void
         Http::json([
             'installed'     => false,
             'checks'        => $checks,
-            'ready'         => !in_array(false, array_column($checks, 'ok'), true),
+            // Only required checks block. The rest are shown, loudly, and
+            // left to the operator's judgement.
+            'ready'         => !array_filter(
+                $checks,
+                static fn (array $c): bool => ($c['required'] ?? false) && !$c['ok'],
+            ),
             'challengeFile' => 'storage/setup-code.txt',
             'challengeHint' =>
                 'Open storage/setup-code.txt over FTP or in your hosting file manager and copy the code it contains. '

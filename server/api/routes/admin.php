@@ -67,8 +67,17 @@ function registerAdminRoutes(Router $router): void
 
     /* ---------------- settings ---------------- */
 
-    $router->get('/admin/settings', static function (): void {
-        Auth::requireAdmin();
+    /**
+     * Settings, with every secret masked.
+     *
+     * Used by both the read and the write handler. Building the response in one
+     * place is the point: the write path returning the fresh state is the
+     * obvious thing to do, and doing it by hand is how `captcha.secret` ends up
+     * in a response body.
+     *
+     * @return array<string, mixed>
+     */
+    $settingsPayload = static function (): array {
         $values = Settings::all();
         foreach ($values as $key => $value) {
             if (Settings::isSecret((string) $key) && is_string($value)) {
@@ -82,10 +91,15 @@ function registerAdminRoutes(Router $router): void
         $values['auth.inviteToken'] = Settings::mask(Config::string('invite_token'));
         $values['cron.token'] = Settings::mask(Config::string('cron_token'));
         $values['cron.url'] = Http::baseUrl() . '/cron.php?k=YOUR-TOKEN';
-        Http::json($values);
+        return $values;
+    };
+
+    $router->get('/admin/settings', static function () use ($settingsPayload): void {
+        Auth::requireAdmin();
+        Http::json($settingsPayload());
     });
 
-    $router->patch('/admin/settings', static function (): void {
+    $router->patch('/admin/settings', static function () use ($settingsPayload): void {
         Auth::requireAdmin();
         $body = Http::body();
 
@@ -105,7 +119,7 @@ function registerAdminRoutes(Router $router): void
 
         Settings::setMany($body);
         Audit::log('admin.settings', '', ['keys' => array_keys($body)]);
-        Http::json(Settings::all());
+        Http::json($settingsPayload());
     });
 
     /* ---------------- users ---------------- */

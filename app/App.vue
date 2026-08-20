@@ -24,9 +24,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex min-h-dvh flex-col bg-background text-foreground">
+  <!--
+    The shell is exactly one viewport tall and never scrolls itself. The studio
+    is a three-column layout whose side panels scroll independently, and a
+    scrolling page underneath that would push the swatch strip's hex labels off
+    the bottom of the screen — which is precisely what happened before this.
+    Pages that genuinely need to scroll scroll `main`.
+  -->
+  <div class="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
     <AppHeader />
-    <main class="flex min-h-0 flex-1 flex-col">
+    <main class="scroll-slim flex min-h-0 flex-1 flex-col overflow-y-auto">
       <RouterView v-slot="{ Component }">
         <component :is="Component" />
       </RouterView>

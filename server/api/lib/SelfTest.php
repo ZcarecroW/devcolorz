@@ -20,7 +20,15 @@ final class SelfTest
     private static ?array $cache = null;
 
     /**
-     * @return list<array{id: string, label: string, ok: bool, detail: string}>
+     * Environment checks.
+     *
+     * `required` separates "this cannot work" from "this is a bad idea".
+     * Blocking installation on everything red sounds prudent and is not: TLS
+     * terminated at a reverse proxy leaves `$_SERVER['HTTPS']` unset, so a
+     * hard HTTPS gate makes a perfectly ordinary deployment impossible to
+     * install. Required checks block; the rest are loud warnings.
+     *
+     * @return list<array{id: string, label: string, ok: bool, required: bool, detail: string}>
      */
     public static function environment(): array
     {
@@ -30,6 +38,7 @@ final class SelfTest
         $checks[] = [
             'id'     => 'php',
             'label'  => 'PHP 8.2 or newer',
+            'required' => true,
             'ok'     => $phpOk,
             'detail' => 'Running PHP ' . PHP_VERSION . '.',
         ];
@@ -38,6 +47,7 @@ final class SelfTest
         $checks[] = [
             'id'     => 'pdo_sqlite',
             'label'  => 'SQLite support',
+            'required' => true,
             'ok'     => $pdo,
             'detail' => $pdo
                 ? 'pdo_sqlite is loaded.'
@@ -49,6 +59,7 @@ final class SelfTest
         $checks[] = [
             'id'     => 'sqlite_version',
             'label'  => 'SQLite 3.24 or newer',
+            'required' => true,
             'ok'     => $sqliteOk,
             'detail' => $sqliteVersion !== ''
                 ? 'SQLite ' . $sqliteVersion . '. '
@@ -62,6 +73,7 @@ final class SelfTest
         $checks[] = [
             'id'     => 'writable',
             'label'  => 'Writable document root',
+            'required' => true,
             'ok'     => $writable,
             'detail' => $writable
                 ? 'The application can create its storage directory and configuration file.'
@@ -72,6 +84,7 @@ final class SelfTest
         $checks[] = [
             'id'     => 'argon2id',
             'label'  => 'Argon2id password hashing',
+            'required' => false,
             'ok'     => true,
             'detail' => $argon
                 ? 'Argon2id is available and will be used with a 19 MiB memory cost.'
@@ -83,6 +96,7 @@ final class SelfTest
         $checks[] = [
             'id'     => 'mail',
             'label'  => 'Outgoing email',
+            'required' => false,
             'ok'     => $mail,
             'detail' => $mail
                 ? 'mail() is available. Delivery still depends on this host having a working mail transport agent.'
@@ -94,6 +108,7 @@ final class SelfTest
         $checks[] = [
             'id'     => 'https',
             'label'  => 'HTTPS',
+            'required' => false,
             'ok'     => $https,
             'detail' => $https
                 ? 'The connection is encrypted, so the session cookie can carry the __Host- prefix.'
@@ -104,6 +119,7 @@ final class SelfTest
         $checks[] = [
             'id'     => 'network',
             'label'  => 'Outbound HTTP',
+            'required' => false,
             'ok'     => $net,
             'detail' => $net
                 ? 'The server can reach external services, so hCaptcha verification will work.'
@@ -114,6 +130,7 @@ final class SelfTest
         $checks[] = [
             'id'     => 'wal',
             'label'  => 'SQLite write-ahead logging',
+            'required' => false,
             'ok'     => true,
             'detail' => $wal
                 ? 'WAL mode works on this filesystem, so reads do not block writes.'
@@ -152,7 +169,10 @@ final class SelfTest
     /**
      * Ask the web server for each sensitive path and report what it returns.
      *
-     * @return list<array{id: string, label: string, ok: bool, detail: string}>
+     * Every one of these is required: a publicly downloadable database is not
+     * a matter of judgement.
+     *
+     * @return list<array{id: string, label: string, ok: bool, required: bool, detail: string}>
      */
     public static function exposure(): array
     {
@@ -179,9 +199,10 @@ final class SelfTest
             // as inconclusive rather than pretending it passed.
             $ok = $status !== 200;
             $results[] = [
-                'id'     => $id,
-                'label'  => $label . ' is not web-reachable',
-                'ok'     => $ok,
+                'id'       => $id,
+                'label'    => $label . ' is not web-reachable',
+                'required' => true,
+                'ok'       => $ok,
                 'detail' => $status === 0
                     ? 'Could not complete a loopback request to ' . $path . '. Check this URL manually in a browser — it must not return the file.'
                     : ($ok

@@ -374,6 +374,14 @@ export const ALGORITHM_HINTS: Record<ExtractAlgorithm, string> = {
     'Clusters first, then ranks the clusters by how interesting they are rather than how much of the image they cover — favouring saturated, mid-lightness colors and rejecting near-duplicates. A grey street with one red door gives you the red door. This is usually the one you want for brand work.',
 }
 
+export const EXTRACT_SORT_LABELS: Record<ExtractOptions['sort'], string> = {
+  lightness: 'Lightness',
+  chroma: 'Colorfulness',
+  hue: 'Hue',
+  population: 'Coverage',
+  none: 'Algorithm order',
+}
+
 export const EXTRACT_SORT_HINTS: Record<ExtractOptions['sort'], string> = {
   lightness: 'Light to dark. Reads as a designed palette and makes the light/dark ends obvious.',
   chroma: 'Most colorful first. Puts the accents at the front and the neutrals at the back.',

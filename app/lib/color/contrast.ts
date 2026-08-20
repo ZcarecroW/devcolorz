@@ -216,6 +216,11 @@ export function contrastMatrix(colors: ColorInput[], metric: ContrastMetric = 'w
   return colors.map((a) => colors.map((b) => (metric === 'apca' ? apca(a, b) : wcag(a, b))))
 }
 
+export const METRIC_LABELS: Record<ContrastMetric, string> = {
+  wcag: 'WCAG 2.x ratio',
+  apca: 'APCA Lc',
+}
+
 export const METRIC_HINTS: Record<ContrastMetric, string> = {
   wcag: 'The ratio defined by WCAG 2.x, from 1:1 to 21:1. It is what accessibility audits and most legislation still measure, so you usually have to satisfy it. Its weakness is well documented: it over-rates dark backgrounds and under-rates mid-tone pairs, and it ignores font size and weight entirely.',
   apca: 'The perceptual contrast algorithm developed for WCAG 3. It reports Lc values from roughly -108 to 106 and accounts for polarity — light-on-dark and dark-on-light are scored differently, because the eye treats them differently. It maps directly onto usable font sizes and weights. Not yet a legal standard, but a far better predictor of whether text is actually readable.',

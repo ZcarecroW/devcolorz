@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "bundle": "node scripts/bundle.mjs",
     "deploy": "node scripts/deploy.mjs",
-    "ship": "npm run build && npm run bundle && npm run deploy"
+    "ship": "npm run build && npm run bundle && npm run deploy",
+    "digest": "node scripts/gen-api-digest.mjs"
   },
   "dependencies": {
     "@lucide/vue": "^1.33.0",

@@ -47,6 +47,18 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  /*
+   * Success and warning are ours, not shadcn's — shadcn ships only
+   * `destructive`. They are excluded from the export contract for exactly that
+   * reason, but the interface needs three levels of severity, and a component
+   * reaching for a raw `green-500` would ignore the user's theme and go on
+   * ignoring it in dark mode.
+   */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
   --font-sans: var(--font-sans);
   --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);

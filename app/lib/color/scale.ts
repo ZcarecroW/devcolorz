@@ -48,7 +48,11 @@ export interface ScaleOptions {
   anchor: number | null
   /** Chroma at the ends relative to the middle. Below 1 desaturates the tails. */
   chromaFalloff: number
-  /** Bend the lightness distribution: <1 favours light steps, >1 dark steps. */
+  /**
+   * Bend the lightness distribution. The ramp interpolates `pow(t, curve)`
+   * from `lightEnd` to `darkEnd`, so values below 1 push the steps toward the
+   * dark end and values above 1 keep more of them light.
+   */
   curve: number
   /** Surface the contrast targets are measured against. */
   background: ColorInput
@@ -115,6 +119,19 @@ export const TAILWIND_CONTRAST_TARGETS = [1.05, 1.12, 1.35, 1.8, 2.6, 3.9, 5.4, 
 /** WCAG ratios matching the Radix step contract against a light app background. */
 export const RADIX_CONTRAST_TARGETS = [1.02, 1.06, 1.14, 1.24, 1.38, 1.6, 1.9, 2.4, 3.3, 3.9, 5.6, 13.5]
 
+/**
+ * The same ladders in APCA Lc.
+ *
+ * A separate table is not a nicety. WCAG ratios run 1–21 and APCA Lc runs
+ * 0–106, so scoring an APCA scale against the WCAG ladder marks essentially
+ * every step as passing and the badge stops carrying information. These are
+ * the Lc values the corresponding steps should reach against the reference
+ * surface: 60 is the floor for large or heavy text, 75 for body text, 90 for
+ * body text at any weight.
+ */
+export const TAILWIND_APCA_TARGETS = [3, 7, 18, 30, 45, 60, 72, 85, 95, 103, 106]
+export const RADIX_APCA_TARGETS = [1, 3, 7, 11, 16, 23, 30, 40, 55, 62, 75, 95]
+
 function keysFor(options: ScaleOptions): string[] {
   switch (options.preset) {
     case 'radix':
@@ -136,8 +153,10 @@ function purposesFor(preset: ScalePreset): Record<string, string> {
 
 function targetsFor(options: ScaleOptions, count: number): number[] {
   if (options.targets && options.targets.length === count) return options.targets
-  const source =
-    options.preset === 'radix' ? RADIX_CONTRAST_TARGETS : TAILWIND_CONTRAST_TARGETS
+  const apca = options.metric === 'apca'
+  const source = options.preset === 'radix'
+    ? (apca ? RADIX_APCA_TARGETS : RADIX_CONTRAST_TARGETS)
+    : (apca ? TAILWIND_APCA_TARGETS : TAILWIND_CONTRAST_TARGETS)
   // Resample whichever canonical target list we have onto `count` steps.
   return Array.from({ length: count }, (_, i) => {
     const t = count === 1 ? 0 : i / (count - 1)
@@ -239,7 +258,9 @@ export function generateScale(seed: ColorInput, options: Partial<ScaleOptions> =
       key: keys[i],
       color,
       contrast,
-      meetsTarget: contrast >= targets[i] - 0.02,
+      // A tolerance of 0.02 is right for a ratio and absurdly tight for an
+      // Lc value, where a whole unit is below the threshold of perception.
+      meetsTarget: contrast >= targets[i] - (opts.metric === 'apca' ? 1 : 0.02),
       purpose: purposes[keys[i]] ?? '',
     })
   }
@@ -263,6 +284,19 @@ export function generateNeutralScale(
     { mode: 'oklch', l: base.l ?? 0.5, c: tint, h: base.h ?? 0 },
     { ...options, chromaFalloff: 0.2, pinSeed: false },
   )
+}
+
+export const SCALE_MODE_LABELS: Record<ScaleMode, string> = {
+  lightness: 'Even lightness',
+  contrast: 'Solve for contrast',
+  hybrid: 'Hybrid',
+}
+
+export const SCALE_PRESET_LABELS: Record<ScalePreset, string> = {
+  tailwind: 'Tailwind 50–950',
+  radix: 'Radix 1–12',
+  material: 'Material tones',
+  custom: 'Custom',
 }
 
 export const SCALE_MODE_HINTS: Record<ScaleMode, string> = {
