@@ -46,6 +46,7 @@ export const toHwb = typedConverter<Color>('hwb')
 export const toLch = typedConverter<Lch>('lch')
 export const toLab = typedConverter<Lab>('lab')
 export const toP3 = typedConverter<Rgb>('p3')
+export const toLrgb = typedConverter<Rgb>('lrgb')
 
 const CONVERTERS: Record<SpaceId, (c: ColorInput) => Color> = {
   oklch: toOklch as never,
