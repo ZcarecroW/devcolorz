@@ -8,14 +8,15 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b --noEmit && vite build",
-    "build:only": "vite build",
+    "build": "node scripts/gen-theme-css.mjs && vue-tsc -b --noEmit && vite build",
+    "build:only": "node scripts/gen-theme-css.mjs && vite build",
     "preview": "vite preview",
     "typecheck": "vue-tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "bundle": "node scripts/bundle.mjs",
-    "deploy": "node scripts/deploy.mjs"
+    "deploy": "node scripts/deploy.mjs",
+    "ship": "npm run build && npm run bundle && npm run deploy"
   },
   "dependencies": {
     "@lucide/vue": "^1.33.0",
@@ -37,6 +38,7 @@
     "@types/culori": "^4.0.1",
     "@types/node": "^26.2.0",
     "@vitejs/plugin-vue": "^6.0.8",
+    "basic-ftp": "^6.2.0",
     "color-name-list": "^14.47.0",
     "jsdom": "^30.0.1",
     "tailwindcss": "^4.3.3",
