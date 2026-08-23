@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.2.1 — 2026-08-23
+
+**The controls on a swatch read differently on every colour.** They are drawn
+in the swatch's own ink at a fixed opacity — but what reaches the eye is that
+ink composited over the swatch, so the fade cost more contrast on some colours
+than others. Measured with the app's own APCA, it costs 24–33 Lc: white and
+near-black start above Lc 100 and can spare it, a mid-tone cannot. #808080 fell
+from Lc 72 to 48, and its drag handle to Lc 40 — below the Lc 45 this app's own
+scale gives as the floor for an icon. The buttons looked washed out until you
+hovered one, which restored full ink.
+
+The fade is now solved instead of fixed: the lowest opacity at which the
+composited ink still reads at Lc 60 for the buttons, and at the Lc 45 icon
+floor for the secondary drag handle. Light and dark swatches solve back to the
+original values and look exactly as before; only the middle of the range firms
+up.
+
+The ink also stopped animating. A re-roll left the controls fading through
+150ms of the previous swatch's ink while the swatch behind them had already
+changed colour.
+
 ## 1.2.0 — 2026-08-23
 
 A pass aimed at one bug class: the control that responds to a click and then
