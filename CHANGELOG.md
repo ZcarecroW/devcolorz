@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.5.0 — 2026-08-23
+
+**A MILELO link in the header**, beside the GitHub mark. MILELO is a primary
+school in Kijenge, Arusha, where lessons and meals cost the families nothing;
+hovering the mark opens a card explaining what the project is and who runs it.
+It opens on keyboard focus as well as hover, and the wordmark is inlined rather
+than hot-linked so no visitor's address is sent to a third-party CDN to render
+it.
+
+**The README shows the app.** Eight labelled screenshots, each with alt text
+and a caption, walking through the constrained generator, the harmony wheels,
+tonal scales, the contrast matrix and colour-vision simulation, export, the
+theme editor repainting the application itself, Explore and the admin console.
+The live instance at devcolorz.fabula.vision is linked at the top.
+
+Nothing else changed: this release is a link, some words and some pictures.
+
 ## 1.4.0 — 2026-08-23
 
 **A GitHub mark in the header**, left of the appearance toggle, linking to the
