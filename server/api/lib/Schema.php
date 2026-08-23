@@ -242,7 +242,7 @@ final class Schema
     {
         $rows = Db::all('SELECT id, display_name FROM users ORDER BY id ASC');
         $taken = [];
-        $renamed = 0;
+        $renamed = [];
 
         foreach ($rows as $row) {
             $name = trim((string) $row['display_name']);
@@ -255,9 +255,9 @@ final class Schema
                     $candidateKey = mb_strtolower($candidate, 'UTF-8');
                     $suffix++;
                 } while (isset($taken[$candidateKey]));
+                $renamed[] = ['was' => $row['display_name'], 'now' => $candidate];
                 $name = $candidate;
                 $key = $candidateKey;
-                $renamed++;
             }
             if ($key !== '') {
                 $taken[$key] = true;
@@ -268,7 +268,14 @@ final class Schema
                 (int) $row['id'],
             ]);
         }
-        return $renamed;
+
+        // Renaming somebody's account is not something to do silently. The
+        // operator sees it in Admin -> System -> Audit, with both names, so a
+        // user asking why they are suddenly "Alex 2" can be answered.
+        if ($renamed !== []) {
+            Audit::log('schema.display_names.deduplicated', (string) count($renamed), ['renamed' => $renamed]);
+        }
+        return count($renamed);
     }
 
     /**

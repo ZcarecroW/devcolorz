@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.3.0 — 2026-08-23
+
+**Display names are unique.** Two accounts could both be called Alex. The
+display name is the only part of a profile anyone else ever sees — it is on
+every published palette and every row of the admin user list — so two people
+wearing it made both unattributable.
+
+Names are compared trimmed and case-folded, so "Alex", "alex" and "  ALEX  "
+are one name, and the folding is done in PHP rather than SQLite, whose
+`lower()` handles ASCII only and would have let Ünal and ünal both through. All
+three write paths enforce it — registration, the account page, and an
+administrator editing someone — and each ignores the account doing the asking,
+so re-saving your own profile is never refused on the strength of the name you
+already have.
+
+**Upgrading with duplicates already in the database is handled.** A unique
+index cannot be created while duplicates exist, so rather than fail the upgrade
+the migration renames: the earliest account of each set keeps its name and the
+others are numbered after it, skipping anything already taken. Four accounts
+called Alex become Alex, Alex 2, Alex 3 and alex 4, each keeping its own
+capitalisation.
+
+Smaller, alongside it: the admin console showed "Some fields need attention."
+where the server had sent a sentence explaining what was actually wrong, and
+the account page printed both the specific message and the generic one.
+
 ## 1.2.1 — 2026-08-23
 
 **The controls on a swatch read differently on every colour.** They are drawn
