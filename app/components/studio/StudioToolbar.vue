@@ -17,6 +17,10 @@ import {
   SquareStack,
   Link2,
   Minus,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   Redo2,
   Repeat,
@@ -91,6 +95,28 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
 <template>
   <header class="shrink-0 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
     <div class="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 xl:flex-nowrap">
+      <!--
+        Panel handles.
+
+        They were pinned to the corners of the swatch strip, directly over the
+        first swatch's drag grip and the last one's remove button, and being
+        the higher layer they took both clicks. Here they are never over
+        anything, and on a narrow screen — where the panels are sheets over the
+        palette — they stay reachable while a sheet is open.
+      -->
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class="shrink-0"
+        :aria-label="studio.leftPanelOpen ? 'Hide the controls' : 'Show the controls'"
+        :title="studio.leftPanelOpen ? 'Hide the controls' : 'Show the controls'"
+        :aria-pressed="studio.leftPanelOpen"
+        @click="studio.leftPanelOpen = !studio.leftPanelOpen"
+      >
+        <PanelLeftClose v-if="studio.leftPanelOpen" />
+        <PanelLeftOpen v-else />
+      </Button>
+
       <!-- Title -->
       <input
         v-model="palette.title"
@@ -313,6 +339,17 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
           wide
           text="The whole palette is packed into the URL fragment — colors, locks and names. Nothing is uploaded and no account is involved, so the link works forever and reveals nothing to the server. The cost is length: a twenty-color palette makes a long URL."
         />
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          :aria-label="studio.rightPanelOpen ? 'Hide the previews' : 'Show the previews'"
+          :title="studio.rightPanelOpen ? 'Hide the previews' : 'Show the previews'"
+          :aria-pressed="studio.rightPanelOpen"
+          @click="studio.rightPanelOpen = !studio.rightPanelOpen"
+        >
+          <PanelRightClose v-if="studio.rightPanelOpen" />
+          <PanelRightOpen v-else />
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"
