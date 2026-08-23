@@ -35,19 +35,41 @@ interface PersistedTheme {
   custom: ThemeDefinition[]
 }
 
+/**
+ * Read a key, or null.
+ *
+ * Every access goes through here. Touching `localStorage` at all throws a
+ * SecurityError in Safari's private mode and in any profile with site data
+ * blocked — and because this store is created in `App.vue`'s setup, one
+ * unguarded read took the whole SPA down before it could mount.
+ */
+function readRaw(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
 function readJson<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(key)
+    const raw = readRaw(key)
     return raw ? ({ ...fallback, ...(JSON.parse(raw) as T) } as T) : fallback
   } catch {
     return fallback
   }
 }
 
+const APPEARANCES: readonly Appearance[] = ['light', 'dark', 'system']
+
 export const useThemeStore = defineStore('theme', () => {
-  const appearance = ref<Appearance>(
-    (localStorage.getItem(APPEARANCE_KEY) as Appearance | null) ?? 'system',
-  )
+  // Validated, not blind-cast: a stale or hand-edited value would otherwise
+  // fall through `mode`'s ternary as neither light nor dark and stick there
+  // until the user toggled.
+  const stored = readRaw(APPEARANCE_KEY) as Appearance | null
+  const appearance = ref<Appearance>(stored && APPEARANCES.includes(stored) ? stored : 'system')
+  /** False once the visitor has chosen an appearance of their own. */
+  const appearanceIsDefault = ref(stored === null)
   const systemPrefersDark = ref(
     typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches,
   )
@@ -255,6 +277,7 @@ export const useThemeStore = defineStore('theme', () => {
 
   return {
     appearance,
+    appearanceIsDefault,
     mode,
     presetId,
     overrides,

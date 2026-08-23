@@ -97,6 +97,14 @@ interface HoverReadout {
   top: number
   css: string
   text: string
+  /**
+   * Draw the readout below the pointer instead of above it.
+   *
+   * The badge is shifted a full badge-height above the sampled point, so near
+   * the top of the image it landed at a negative offset and was clipped away
+   * by the letterbox — sampling a sky showed nothing at all.
+   */
+  below: boolean
 }
 const hover = ref<HoverReadout | null>(null)
 
@@ -270,9 +278,15 @@ function onCanvasMove(event: MouseEvent) {
     return
   }
   const rect = el.getBoundingClientRect()
+  const top = event.clientY - rect.top
+  // Half the badge width, so it never runs off either edge either.
+  const margin = 60
   hover.value = {
-    left: event.clientX - rect.left,
-    top: event.clientY - rect.top,
+    left: Math.min(Math.max(event.clientX - rect.left, margin), Math.max(margin, rect.width - margin)),
+    top,
+    // Badge height plus the 12px gap. Below that there is nowhere above the
+    // pointer for it to go.
+    below: top < 42,
     css: formatColor(color, 'oklch'),
     text: formatColor(color, studio.format),
   }
@@ -400,7 +414,8 @@ function addAll() {
           <canvas ref="canvas" class="block max-h-[220px] max-w-full rounded-md" />
           <span
             v-if="hover"
-            class="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-[calc(100%+12px)] items-center gap-1.5 rounded-md border bg-popover/95 px-1.5 py-1 shadow-md"
+            class="pointer-events-none absolute z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-md border bg-popover/95 px-1.5 py-1 shadow-md"
+            :class="hover.below ? 'translate-y-3' : '-translate-y-[calc(100%+12px)]'"
             :style="{ left: `${hover.left}px`, top: `${hover.top}px` }"
           >
             <span
