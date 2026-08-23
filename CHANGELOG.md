@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-08-23
 
 A bug-fix pass over the whole project, starting from six reports and ending
 with eighty-odd fixes. Nothing here changes what the app is for.
