@@ -1,5 +1,127 @@
 # Changelog
 
+## 1.2.0 — 2026-08-23
+
+A pass aimed at one bug class: the control that responds to a click and then
+does nothing — no change, no request, no message. The admin-delete bug in 1.1.1
+was one of those, and it had survived a full audit that read the source, so
+this pass drove the interface in Chrome instead and hunted the shape
+deliberately. Thirty-five findings were confirmed against the code by
+adversarial review and then reproduced in the browser; twenty-five more were
+refuted and dropped.
+
+Minor rather than patch: palettes now carry alpha through every save and every
+link, which changes what the app stores, and three administrator settings that
+had never applied begin taking effect.
+
+### Actions that ran and did nothing
+
+- **"Profile saved" saved nothing you could see.** `PATCH /auth/me` answers
+  with the user; the page read a `user` key that response does not have, merged
+  `undefined`, and left the store untouched. The toast said saved, the field
+  snapped back to the old name, and the server had in fact saved — the one
+  combination guaranteed to make you try again.
+- **All sixteen "Export as …" commands ignored the format they named.** Every
+  one opened the export panel and dropped its emitter, so asking for Swift gave
+  you whatever the panel last showed. The selection moved into the studio
+  store, which also stops it being discarded whenever another tab is shown, and
+  it persists between visits now.
+- **Generate and all eight harmonies did nothing when every colour was
+  locked** — no change, no history entry, no explanation, from five separate
+  entry points including Space and the command palette. They say why now, in
+  the same words wherever you meet the refusal. Picking from the Ranges preview
+  grid in that state used to overwrite a locked swatch instead.
+- **On a phone, asking for the panel that was already selected did nothing.**
+  The sheet reacted to the stored panel *changing*, and it had not changed.
+- **Opening a share link whose colours matched your own discarded it whole** —
+  the names and locks it carried with it included.
+- **Adding an opacity step outside 1–99, or one already in the list, cleared
+  the box and added nothing**, which is exactly what success looks like.
+- **Clearing a channel range's "to" box snapped the channel to its minimum**
+  rather than leaving the value alone.
+
+### Actions that reported something other than what happened
+
+- **A failed visibility change said "Queued for review".** The helper swallowed
+  its own error, so the caller could not tell moderation from a write that
+  never happened, and reported the friendlier of the two.
+- **Sign-out claimed success it could not know.** The local session is dropped
+  regardless, so the header always updated; if the request never reached the
+  server the cookie was still live there, and the missing catch skipped the
+  redirect as well, leaving you on a page you no longer appeared to have access
+  to.
+- **Two keyboard shortcuts dropped a refused clipboard on the floor.** Every
+  button that copies handles it — Ctrl+Shift+C and Ctrl+Shift+L were the only
+  paths where the rejection went nowhere at all.
+- **A refused role or status change reverted the row in silence.** The reason —
+  "that is the only administrator" — went to a banner at the top of a long
+  table, while the select snapped back where you were looking.
+- **A 422 said "Some fields need attention" and threw away the sentence that
+  explained it.** Lowering the instance colour limit turned every oversized
+  save into an error with no stated cause.
+- **The admin overview strip kept the figures it loaded on arrival** while
+  saying "Updated 0s ago". Suspending someone left "0 suspended" on screen.
+
+### Actions that quietly did the wrong thing
+
+- **Deleting a user left every palette behind.** The confirmation says the
+  account and every palette it owns are removed; the foreign key said otherwise,
+  and the public ones stayed in Explore under no owner. They go with the
+  account now, and the audit entry records how many.
+- **Renaming a palette in the library swallowed your next click.** The title
+  commits on blur and the whole card was disabled while that request ran — so
+  the click that *caused* the blur, on Delete or Open or the visibility select,
+  landed on a disabled control and vanished. A rename disables nothing now.
+- **Opening a swatch's rename field and clicking away pinned the automatic
+  name.** The box was pre-filled with the colour's own description, so leaving
+  without typing committed it as an explicit name: an undo step, a dirty
+  palette, and a name that stopped tracking the colour. It is a placeholder now.
+- **Changing any preference silently saved an uncommitted display-name edit**
+  that you had not pressed Save on.
+- **Creating a palette had no re-entrancy guard.** The button disables itself,
+  but only from the next render; clicks arriving inside that window each created
+  one. Four rapid clicks now create one palette.
+- **Settings took any value for any key.** An emptied number box arrived as 0
+  and was stored as a choice — and `maxColors` at zero refuses every palette on
+  the instance, with a success response. Values are checked against the type of
+  the key's own default and refused with a reason.
+- **A slow page could land on a list it no longer belonged to.** Both grids
+  refilter while a request may be in flight; a stale page was appended to the
+  filtered result and brought the wrong cursor with it. A failed "load more" no
+  longer claims you have reached the end.
+
+### Alpha
+
+The adjust dialog has an alpha slider, a checkerboard to show the result and a
+readout saying "45% alpha" — and the URL, the share link and the saved document
+all wrote six-digit hex. Set an opacity and reload, and it was gone; send the
+link and the recipient never saw it. Colours carry eight digits now when they
+are not opaque, and a stored document appends alpha to its OKLCH channels only
+when there is any to store. Both formats still read the old ones, and an opaque
+palette still produces a byte-identical document.
+
+### Settings that had never applied
+
+`engine.defaultGamut` and `engine.defaultSwatchCount` were read at a moment
+when `/meta` had not arrived — the studio deliberately does not wait for the
+backend — so every visitor got the values compiled into the client. The first
+palette now waits briefly, with a deadline, and falls back to the old behaviour
+past it. `engine.defaultDarkStrategy` had a control in the console, a slot in
+the API and no reader anywhere.
+
+### Accessibility
+
+The explanation triggers were 16×16 and the palette-layout toggles 22px tall,
+against the 24×24 minimum — in an app that ships a contrast matrix and
+colour-vision simulation. The icons stay the same size; the targets grew and
+nothing on screen moved.
+
+### Upgrading
+
+Upload the contents of the ZIP over your installation. Do **not** overwrite
+`config.php` or `storage/`. There is no schema change in this release, and
+palettes saved by earlier versions are read unchanged.
+
 ## 1.1.1 — 2026-08-23
 
 **Deleting a user from the admin console did nothing.** The confirmation
