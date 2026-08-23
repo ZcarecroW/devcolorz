@@ -240,7 +240,7 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
             v-for="view in PALETTE_VIEWS"
             :key="view.id"
             type="button"
-            class="flex items-center gap-1.5 rounded-sm px-2 py-1 text-xs transition-colors"
+            class="flex min-h-6 items-center gap-1.5 rounded-sm px-2 py-1 text-xs transition-colors"
             :class="
               studio.paletteView === view.id
                 ? 'bg-accent text-accent-foreground'

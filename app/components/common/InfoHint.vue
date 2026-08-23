@@ -47,7 +47,11 @@ const open = ref(false)
           type="button"
           :class="
             cn(
-              'inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:text-foreground',
+              // 24px of target, 16px of ink. The icon keeps the size the dense
+              // panels are laid out around, while the box a finger has to hit
+              // is the 24px minimum; the negative margin gives the extra back
+              // to the layout, so nothing moves.
+              'inline-flex size-6 -m-1 p-1 shrink-0 cursor-help items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:text-foreground',
               props.class,
             )
           "
