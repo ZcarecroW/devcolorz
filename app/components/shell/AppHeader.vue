@@ -25,6 +25,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import AppearanceToggle from '@/components/shell/AppearanceToggle.vue'
 import GithubLink from '@/components/shell/GithubLink.vue'
+import MileloLink from '@/components/shell/MileloLink.vue'
 import BrandMark from '@/components/shell/BrandMark.vue'
 import { useSessionStore } from '@/stores/session'
 
@@ -124,6 +125,7 @@ async function signOut() {
 
     <div class="flex-1" />
 
+    <MileloLink />
     <GithubLink />
     <AppearanceToggle />
 

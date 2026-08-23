@@ -7,6 +7,11 @@
 Generate palettes inside constraints you define, judge them in real interfaces,
 and export them as production-ready design tokens.
 
+### [Try it → devcolorz.fabula.vision](https://devcolorz.fabula.vision)
+
+No account needed. The generator, the theme editor and every export work
+straight away — an account only adds saving palettes to a library.
+
 [Install](docs/INSTALL.md) · [User guide](docs/GUIDE.md) · [Releases](../../releases)
 
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
@@ -19,6 +24,87 @@ and export them as production-ready design tokens.
 
 Upload it to any shared host with PHP and it runs. No Composer, no Node on the
 server, no database to provision, no build step. Unzip, upload, open the site.
+
+![The generator: channel ranges on the left, the palette in the middle, a real interface preview on the right](docs/screenshots/01-generator.jpg)
+
+*The generator. You describe a region of a colour space on the left — lightness
+35–85%, chroma up to 22, any hue, and no two results closer than 8 perceptual
+units — and every palette lands inside it. On the right the palette is drawn
+into a real transactional email, not a row of squares.*
+
+## A tour in eight screens
+
+### Ranges — say what you want, then roll
+
+*Shown in the screenshot above.* The left panel is the constraint, not a filter
+applied afterwards. Lock a
+channel, narrow it, choose how values are distributed across it, and set how
+far apart two colours must be before both are allowed. Type a seed and the same
+palette comes back every time.
+
+### Harmony — the schemes, on three different wheels
+
+![Harmony schemes previewed on the artistic, perceptual and digital colour wheels](docs/screenshots/02-harmony.jpg)
+
+*Complementary, split, analogous, triadic, tetradic and square — each previewed
+before you apply it. The wheel matters: red's complement is green on the RYB
+wheel taught in art school and cyan on the HSL one your CSS uses, so DevColorz
+offers both rather than picking for you.*
+
+### Scales — a tonal ramp per colour, graded as you build it
+
+![A Tailwind 50–950 ramp derived from one seed colour, each step labelled with its APCA contrast](docs/screenshots/03-scales.jpg)
+
+*Pick a preset — Tailwind 50–950, Material tones, Radix steps — and each step
+is generated in OKLCH and then measured. The badge beside every step says
+whether it meets the contrast target you chose, so the ramp is judged while it
+is made rather than audited later.*
+
+### Accessibility — as an input, not a report
+
+![The contrast matrix, a colour-blind safety score, and the whole studio filtered for deuteranopia](docs/screenshots/04-accessibility.jpg)
+
+*Every pair in the palette, judged by WCAG 2.x and APCA at once. The score
+below rates how much of the palette survives colour-vision deficiency, and the
+switch at the bottom filters the entire studio — palette, previews and all — so
+you see what a deuteranopic visitor sees. The banner is there because the
+values you export never change; only what is on screen does.*
+
+### Export — sixteen formats, and the awkward questions answered
+
+![Tailwind v4 output with light and dark blocks, generated from the palette](docs/screenshots/05-export.jpg)
+
+*CSS custom properties, Tailwind v3 and v4, SCSS, Less, JSON, W3C design
+tokens, TypeScript, CSV, SVG, GIMP, Android, SwiftUI, Flutter, Jetpack Compose,
+a shadcn registry item. Naming, notation, opacity ladders and six different
+light-to-dark strategies are all yours to set — each explained, including why
+the naive HSL flip everyone tries first does not work.*
+
+### Theme editor — the app is the preview
+
+![The theme editor with the whole application repainted from the palette](docs/screenshots/06-theme-editor.jpg)
+
+*Forty-four shadcn custom properties, and DevColorz is painted with exactly the
+same set. This screenshot is the app after "Generate from the current palette":
+the header, the buttons and the panels are all wearing the Harbour palette. If
+the preview looks wrong, the app is wrong — there is no mock-up to disagree
+with.*
+
+### Explore — palettes people chose to publish
+
+![The Explore gallery with eight published palettes](docs/screenshots/07-explore.jpg)
+
+*Public palettes, sorted by trending, newest or most liked, searchable by title
+or by hex. Open any one in the generator and it is yours to edit; nothing is
+copied to your account until you save it.*
+
+### Admin — one console for the whole instance
+
+![The admin console showing instance statistics and the updates panel](docs/screenshots/08-admin.jpg)
+
+*Users, content moderation, mail, scheduled jobs, a self-test that checks your
+server is not exposing anything it should not — and updates, which this
+installation can check for and apply to itself.*
 
 ## What makes it different
 
@@ -151,6 +237,14 @@ Issues and pull requests are welcome. Two house rules:
 
 `docs/API-DIGEST.md` is generated from the compiler's own declarations by
 `npm run digest` — do not edit it by hand.
+
+## The link in the header
+
+Beside the GitHub mark there is a link to [MILELO](https://www.milelo.de/), a
+primary school in Arusha, Tanzania where lessons and meals cost the families
+nothing. It is run locally, funded through the German non-profit Education is
+Light e.V., and it has nothing to do with colour — it is there because the
+person who wrote this supports it, and a header is cheap.
 
 ## Licence
 
