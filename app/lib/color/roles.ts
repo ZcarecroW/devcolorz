@@ -385,15 +385,53 @@ export function assignRoles(palette: ColorInput[], options: Partial<RoleOptions>
       chart.push(value(current.color, current.index))
     }
   }
-  // Extend by rotating hue when the palette cannot fill the requested series.
+  /*
+   * Extend the series when the palette cannot fill it.
+   *
+   * Two things were wrong here. `chart.length % chart.length` is always 0, so
+   * every invented series was seeded from the same colour; and rotating the
+   * hue of a colour with no chroma returns that colour unchanged, so a
+   * greyscale palette produced up to five byte-identical "distinct" chart
+   * colours — two lines on a chart that are provably the same grey.
+   *
+   * Chromatic seeds still rotate hue. Achromatic ones walk lightness instead,
+   * which is the only axis a grey has, and each candidate is checked against
+   * everything already in the series so a step that lands on an existing one
+   * is pushed further rather than emitted.
+   */
+  const chartOriginals = chart.length
   let rotation = 1
   while (chart.length < opts.chartCount) {
-    const seed = chart[chart.length % Math.max(1, chart.length)] ?? primary
-    const l = lightnessOf(seed.color)
-    const h = (hueOf(seed.color) + rotation * 47) % 360
-    chart.push(
-      derivedValue(mapToGamut({ mode: 'oklch', l, c: Math.min(chromaOf(seed.color), maxChroma(l, h)), h }, 'css4')),
-    )
+    const seed = chart[(chart.length - 1) % Math.max(1, chartOriginals)] ?? primary
+    const seedChroma = chromaOf(seed.color)
+    let candidate: Oklch
+
+    if (seedChroma >= 0.04) {
+      const l = lightnessOf(seed.color)
+      const h = (hueOf(seed.color) + rotation * 47) % 360
+      candidate = mapToGamut(
+        { mode: 'oklch', l, c: Math.min(seedChroma, maxChroma(l, h)), h },
+        'css4',
+      )
+    } else {
+      // Alternate above and below the seed, widening each time, and stop at
+      // the first step that is far enough from every colour already chosen.
+      const base = lightnessOf(seed.color)
+      const h = hueOf(seed.color)
+      candidate = { mode: 'oklch', l: base, c: 0, h }
+      for (let step = 1; step <= 8; step++) {
+        const delta = (step % 2 === 0 ? -1 : 1) * Math.ceil(step / 2) * 0.11
+        const l = Math.min(0.94, Math.max(0.16, base + delta))
+        const attempt: Oklch = { mode: 'oklch', l, c: 0, h }
+        if (chart.every((existing) => Math.abs(lightnessOf(existing.color) - l) > 0.07)) {
+          candidate = attempt
+          break
+        }
+        candidate = attempt
+      }
+    }
+
+    chart.push(derivedValue(candidate))
     rotation++
   }
 

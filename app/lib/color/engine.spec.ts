@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_EXPORT_CONFIG } from '@/lib/export/config'
 import { buildGraph } from '@/lib/export/graph'
+import { EMITTERS_BY_ID } from '@/lib/export/emitters'
 import { makeSwatch } from '@/stores/palette'
 import { formatColor, parseColor } from './convert'
 import { apca, makeReadable, wcag, wcagLevel } from './contrast'
@@ -546,5 +547,173 @@ describe('makeReadable', () => {
   it('keeps the hue while fixing', () => {
     const fixed = makeReadable('#8ecae6', '#ffffff', { metric: 'wcag', target: 4.5 })!
     expect(Math.abs((fixed.h ?? 0) - (parseColor('#8ecae6')!.h ?? 0))).toBeLessThan(3)
+  })
+})
+
+/*
+ * Regressions.
+ *
+ * Every case below is a bug that shipped. The test names say what went wrong,
+ * because the point of them is to stop it going wrong again the same way.
+ */
+
+describe('regressions', () => {
+  it('fills a harmony without repeating a color', () => {
+    // fitOffsets walked the *original* offsets and wrapped on the third pass,
+    // so complementary at the default palette size emitted swatch 5 as a
+    // byte-identical copy of swatch 3.
+    for (const id of ['complementary', 'split-complementary', 'triadic'] as const) {
+      for (let count = 2; count <= 12; count++) {
+        const colors = harmony('#3b82f6', id, { count, vary: false })
+        const hexes = colors.map((c) => formatColor(c, 'hex'))
+        expect(new Set(hexes).size, `${id} at ${count}`).toBe(count)
+      }
+    }
+  })
+
+  it('numbers Material tones light to dark', () => {
+    // The key list ran the other way, so tone 0 — black in Material 3 — came
+    // back near-white and tone 40, the canonical light-mode primary, was a
+    // pale tint.
+    const scale = generateScale('#3b82f6', { preset: 'material', pinSeed: false })
+    const tone = (key: string) => scale.find((s) => s.key === key)!
+    expect(tone('100').color.l!).toBeGreaterThan(tone('0').color.l!)
+    expect(tone('80').color.l!).toBeGreaterThan(tone('40').color.l!)
+  })
+
+  it('keeps every dark-mode ramp step in order and distinct', () => {
+    // radixLightness had a 0.155 jump at L 0.55 and materialLightness clamped
+    // everything below L 0.27 onto one value, so a descending light ramp came
+    // back out of order, or with two steps that were exactly the same color.
+    for (const strategy of ['radix', 'material', 'oklch-curve'] as const) {
+      const light = generateScale('#3b82f6', { preset: 'tailwind', pinSeed: false })
+      const dark = light.map((step) => toDark(step.color, { strategy }))
+      for (let i = 1; i < dark.length; i++) {
+        expect(dark[i].l!, `${strategy} step ${i}`).toBeGreaterThan(dark[i - 1].l! - 1e-9)
+      }
+      const seen = dark.map((c) => formatColor(c, 'hex'))
+      expect(new Set(seen).size, `${strategy} distinct`).toBe(seen.length)
+    }
+  })
+
+  it('never emits the same variable twice', () => {
+    // "Blue 500" and the 500 step of "Blue" both composed to the same custom
+    // property, so one color silently overwrote the other in the stylesheet.
+    const swatches = [
+      makeSwatch(parseColor('#3b82f6')!, 'Blue'),
+      makeSwatch(parseColor('#60a5fa')!, 'Blue 500'),
+    ]
+    const graph = buildGraph(swatches, {
+      ...DEFAULT_EXPORT_CONFIG,
+      emitScales: true,
+      overrides: { [swatches[0].id]: { scale: true } },
+    })
+    const names = graph.tokens.map((t) => t.name)
+    expect(new Set(names).size).toBe(names.length)
+    expect(graph.renames.length).toBeGreaterThan(0)
+  })
+
+  it('keeps fallback numbers stable when a color is excluded', () => {
+    // Numbering ran over the surviving list, so hiding one unnamed color
+    // renumbered every color after it and silently repointed a stylesheet.
+    const swatches = ['#111111', '#222222', '#333333', '#444444'].map((hex) =>
+      makeSwatch(parseColor(hex)!),
+    )
+    expect(buildGraph(swatches, DEFAULT_EXPORT_CONFIG).tokens.map((t) => t.name)).toEqual([
+      'color-1',
+      'color-2',
+      'color-3',
+      'color-4',
+    ])
+
+    const withHole = buildGraph(swatches, {
+      ...DEFAULT_EXPORT_CONFIG,
+      overrides: { [swatches[1].id]: { exclude: true } },
+    })
+    expect(withHole.tokens.map((t) => t.name)).toEqual(['color-1', 'color-3', 'color-4'])
+  })
+
+  it('gives every emitted name a legal identifier', () => {
+    // A leading digit is legal in a CSS custom property and illegal in SCSS,
+    // Less, Swift, Kotlin and Android resources — six emitters produced files
+    // that would not compile.
+    const swatches = [makeSwatch(parseColor('#3b82f6')!, '1st accent')]
+    const graph = buildGraph(swatches, { ...DEFAULT_EXPORT_CONFIG, prefix: '' })
+    expect(graph.tokens[0].name).toMatch(/^[A-Za-z_]/)
+  })
+
+  it('does not let a generated slug collide with a real name', () => {
+    expect(uniqueSlugs(['Blue', 'Blue 2', 'Blue'])).toEqual(['blue', 'blue-2', 'blue-3'])
+  })
+
+  it('gives an achromatic palette distinct chart colors', () => {
+    // The extension seeded every invented series from the same entry and
+    // rotated its hue, which does nothing at all to a grey.
+    const greys = ['#ffffff', '#d4d4d4', '#737373', '#262626', '#0a0a0a'].map(
+      (hex) => parseColor(hex)!,
+    )
+    const roles = assignRoles(greys, { chartCount: 6 })
+    const charts = roles.chart.map((entry) => formatColor(entry.color, 'hex'))
+    expect(new Set(charts).size).toBe(charts.length)
+  })
+
+  it('emits a light override the media query can actually beat', () => {
+    // `:root:not(.dark)` outside the media query is (0,2,0) and the dark rule
+    // inside it is (0,1,0), so the whole @media block was dead CSS and a
+    // dark-mode visitor got the light palette.
+    const swatches = [makeSwatch(parseColor('#3b82f6')!, 'Brand')]
+    const graph = buildGraph(swatches, {
+      ...DEFAULT_EXPORT_CONFIG,
+      emitDark: true,
+      darkDelivery: 'both',
+    })
+    const css = EMITTERS_BY_ID.css.emit(graph)
+    expect(css).not.toContain(':root:not(')
+    expect((css.match(/@media \(prefers-color-scheme: dark\)/g) ?? []).length).toBe(2)
+    expect(css.lastIndexOf(DEFAULT_EXPORT_CONFIG.lightClass)).toBeGreaterThan(css.indexOf('@media'))
+  })
+
+  it('writes the Tailwind prefix once in every name case', () => {
+    // The emitter stripped a hard-coded `color-` off the *rendered* name, which
+    // only matched in kebab: camelCase produced --color-colorBrand.
+    const swatches = [makeSwatch(parseColor('#3b82f6')!, 'Brand')]
+    for (const style of ['kebab', 'camel', 'pascal', 'snake', 'constant'] as const) {
+      const graph = buildGraph(swatches, { ...DEFAULT_EXPORT_CONFIG, case: style })
+      const css = EMITTERS_BY_ID.tailwind4.emit(graph)
+      expect(css, style).toContain('--color-brand:')
+      expect(css, style).not.toMatch(/--color-color/i)
+    }
+  })
+
+  it('keeps a comment-free export comment-free', () => {
+    const swatches = [makeSwatch(parseColor('#3b82f6')!, 'Ocean Blue')]
+    const graph = buildGraph(swatches, { ...DEFAULT_EXPORT_CONFIG, includeComments: false })
+    expect(EMITTERS_BY_ID.css.emit(graph)).not.toContain('/*')
+  })
+
+  it('escapes a palette title that would otherwise break the file', () => {
+    const swatches = [makeSwatch(parseColor('#3b82f6')!, 'Brand')]
+    const graph = buildGraph(swatches, DEFAULT_EXPORT_CONFIG, 'R&D <2026> */ hack')
+    expect(EMITTERS_BY_ID.svg.emit(graph)).toContain('R&amp;D &lt;2026&gt;')
+    expect(EMITTERS_BY_ID.css.emit(graph)).not.toContain('*/ hack')
+  })
+
+  it('survives a prefix containing a regex metacharacter', () => {
+    const swatches = [makeSwatch(parseColor('#3b82f6')!, 'Brand')]
+    const graph = buildGraph(swatches, { ...DEFAULT_EXPORT_CONFIG, prefix: '(' })
+    expect(() => EMITTERS_BY_ID.tailwind3.emit(graph)).not.toThrow()
+  })
+
+  it('labels an SVG swatch in ink that can be seen on it', () => {
+    // The test read apcaOnWhite, which is *high* for a dark color, so every
+    // label was drawn in a shade of its own tile.
+    const dark = EMITTERS_BY_ID.svg.emit(
+      buildGraph([makeSwatch(parseColor('#0a0a2a')!, 'Midnight')], DEFAULT_EXPORT_CONFIG),
+    )
+    const pale = EMITTERS_BY_ID.svg.emit(
+      buildGraph([makeSwatch(parseColor('#fff8c4')!, 'Butter')], DEFAULT_EXPORT_CONFIG),
+    )
+    expect(dark).toContain('#ffffff')
+    expect(pale).toContain('#111111')
   })
 })

@@ -134,7 +134,7 @@ export const ALPHA_MODE_HINTS = {
   ladder:
     'The straightforward option: your color at a series of opacities. Predictable, and what most people expect from "transparent variants". The catch is that the result depends on whatever sits behind it, so the same variable looks different on white than on a photo.',
   solved:
-    'Solves for the pair of colour and opacity that composites to a specific target over a specific background. The exported value looks nothing like your original color — that is the point. Because it is genuinely translucent, it stays correct over gradients, images and nested surfaces, where a flat opacity ladder drifts. This is how Radix builds its alpha scales.',
+    'Solves for the pair of color and opacity that composites to a specific target over a specific background. The exported value looks nothing like your original color — that is the point. Because it is genuinely translucent, it stays correct over gradients, images and nested surfaces, where a flat opacity ladder drifts. This is how Radix builds its alpha scales.',
   overlay:
     'Pure black or pure white at a series of opacities, chosen automatically to suit the background’s lightness. The right tool for scrims, hover fills, dividers and disabled states — anywhere the tint should come from the surface rather than from the brand.',
 } as const

@@ -159,20 +159,40 @@ function varyTone(color: Oklch, index: number, total: number): Oklch {
   return { ...color, l, c }
 }
 
-/** Repeat/trim a hue offset list to exactly `count` entries. */
+const wrap360 = (angle: number): number => ((angle % 360) + 360) % 360
+
+/**
+ * Repeat/trim a hue offset list to exactly `count` entries.
+ *
+ * Each extra colour halves the widest remaining gap, and the scan runs over
+ * everything added so far rather than over the original list. Walking the
+ * original list instead wrapped back to its first entry on the third pass and
+ * re-emitted a midpoint it had already emitted, so a complementary scheme at
+ * the default palette size of five came back with two byte-identical colours.
+ */
 function fitOffsets(offsets: number[], count: number, spread: number): number[] {
   if (offsets.length === count) return offsets
   if (offsets.length > count) return offsets.slice(0, count)
+
   const out = offsets.slice()
-  let i = 0
   while (out.length < count) {
-    // Extra colors interleave between the canonical angles rather than
-    // repeating them, so a triadic palette at count=6 stays balanced.
-    const base = offsets[i % offsets.length]
-    const next = offsets[(i + 1) % offsets.length]
-    const gap = ((next - base) % 360 + 360) % 360 || spread
-    out.push((base + gap / 2) % 360)
-    i++
+    const sorted = [...out].sort((a, b) => a - b)
+    let bestBase = sorted[0] ?? 0
+    let bestGap = 0
+    for (let k = 0; k < sorted.length; k++) {
+      const gap = wrap360((sorted[(k + 1) % sorted.length] ?? sorted[k]) - sorted[k])
+      // Strictly greater keeps the first of equal gaps, so the order stays
+      // canonical rather than depending on the sort's stability.
+      if (gap > bestGap) {
+        bestGap = gap
+        bestBase = sorted[k]
+      }
+    }
+    // A single angle, or a degenerate list where every gap is zero, has
+    // nothing to halve — a split complementary at the lowest spread seeds
+    // [0, 180, 180]. Fall back to the caller's spread rather than duplicating.
+    if (bestGap === 0) bestGap = spread || 360 / Math.max(1, count)
+    out.push(wrap360(bestBase + bestGap / 2))
   }
   return out.slice(0, count)
 }

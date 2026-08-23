@@ -66,7 +66,14 @@ export interface ScaleOptions {
 
 export const TAILWIND_KEYS = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
 export const RADIX_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
-export const MATERIAL_KEYS = ['0', '10', '20', '30', '40', '50', '60', '70', '80', '90', '95', '99', '100']
+/*
+ * Material tones count *up* toward white: tone 0 is black, tone 100 is white.
+ * The ramp itself is generated light-to-dark like every other preset, so the
+ * key list has to descend — listed the other way round, the step labelled 0
+ * came out near-white and `tone 40`, the canonical M3 light-mode primary,
+ * handed back a pale tint.
+ */
+export const MATERIAL_KEYS = ['100', '99', '95', '90', '80', '70', '60', '50', '40', '30', '20', '10', '0']
 
 /** What each Radix step is contractually for — the reason the scale is useful. */
 export const RADIX_PURPOSES: Record<string, string> = {
