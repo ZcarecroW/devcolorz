@@ -273,7 +273,20 @@ final class Mail
         if ($configured !== '' && filter_var($configured, FILTER_VALIDATE_EMAIL)) {
             return $configured;
         }
+        /*
+         * The port is not part of the domain.
+         *
+         * `HTTP_HOST` carries it whenever the site is not on 80 or 443, and
+         * stripping the colon as a stray character rather than removing the
+         * port welded it onto the host: `127.0.0.1:8391` became
+         * `noreply@127.0.0.18391`. Every message from such an installation
+         * went out with a sender domain that does not exist, which no
+         * receiving server will accept — the silent kind of mail failure.
+         */
         $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        // An IPv6 literal arrives bracketed, as [::1]:8391.
+        $host = preg_replace('/^\[(.+)\](?::\d+)?$/', '$1', $host) ?? $host;
+        $host = preg_replace('/:\d+$/', '', $host) ?? $host;
         $host = preg_replace('/[^a-z0-9.-]/i', '', $host) ?: 'localhost';
         return 'noreply@' . $host;
     }

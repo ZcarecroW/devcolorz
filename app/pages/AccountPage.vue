@@ -437,6 +437,16 @@ onMounted(() => {
       </header>
 
       <!-- Profile -->
+      <!--
+        A real form, not a card with a button in it.
+
+        Two things depend on it. Enter is how people submit a password field,
+        and without a form it did nothing at all here while working on every
+        other form in the app. And a password manager only offers to update a
+        stored credential when it sees a form submit — without one, changing
+        your password here left the manager holding the old one.
+      -->
+      <form novalidate @submit.prevent="saveProfile">
       <Card>
         <CardHeader>
           <CardTitle class="text-base">Profile</CardTitle>
@@ -493,8 +503,10 @@ onMounted(() => {
           </Button>
         </CardFooter>
       </Card>
+      </form>
 
       <!-- Email -->
+      <form novalidate @submit.prevent="changeEmail">
       <Card>
         <CardHeader>
           <CardTitle class="flex items-center gap-2 text-base">
@@ -575,8 +587,10 @@ onMounted(() => {
           </Button>
         </CardFooter>
       </Card>
+      </form>
 
       <!-- Password -->
+      <form novalidate @submit.prevent="changePassword">
       <Card>
         <CardHeader>
           <CardTitle class="text-base">Password</CardTitle>
@@ -674,6 +688,7 @@ onMounted(() => {
           </Button>
         </CardFooter>
       </Card>
+      </form>
 
       <!-- Sessions -->
       <Card>

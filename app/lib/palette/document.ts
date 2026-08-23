@@ -111,24 +111,35 @@ export function docFromState(state: PaletteState): PaletteDoc {
  * generator" works from a card that never fetched the full record.
  */
 export function stateFromPalette(item: PaletteSummary): PaletteState | null {
-  const entries: PaletteDocColor[] = item.doc?.colors?.length
-    ? item.doc.colors
-    : item.colors.map((hex) => ({ hex }))
-
-  const colors: Oklch[] = []
-  const names: string[] = []
-  const locks: boolean[] = []
-  for (const entry of entries) {
-    // The stored channels win when they are there: hex has already lost
-    // anything outside sRGB, and re-parsing it would bake that loss in.
-    const parsed = entry.oklch
-      ? ({ mode: 'oklch', l: entry.oklch[0], c: entry.oklch[1], h: entry.oklch[2] } satisfies Oklch)
-      : parseColor(entry.hex)
-    if (!parsed) continue
-    colors.push(parsed)
-    names.push(entry.name ?? '')
-    locks.push(Boolean(entry.locked))
+  const read = (entries: ReadonlyArray<PaletteDocColor | string>) => {
+    const colors: Oklch[] = []
+    const names: string[] = []
+    const locks: boolean[] = []
+    for (const entry of entries) {
+      // A document written by another client may hold bare hex strings rather
+      // than our objects. The API stores whatever it is given, so this reads
+      // both rather than returning "no readable colors" for a palette whose
+      // colors are perfectly readable.
+      const doc: PaletteDocColor = typeof entry === 'string' ? { hex: entry } : entry
+      // The stored channels win when they are there: hex has already lost
+      // anything outside sRGB, and re-parsing it would bake that loss in.
+      const parsed = doc?.oklch
+        ? ({ mode: 'oklch', l: doc.oklch[0], c: doc.oklch[1], h: doc.oklch[2] } satisfies Oklch)
+        : parseColor(doc?.hex as string)
+      if (!parsed) continue
+      colors.push(parsed)
+      names.push(doc?.name ?? '')
+      locks.push(Boolean(doc?.locked))
+    }
+    return { colors, names, locks }
   }
+
+  // The document first, for names, locks and full-precision channels; the flat
+  // hex list as the fallback, so a card that never fetched the full record —
+  // or one whose document cannot be read — still opens.
+  const fromDoc = read(item.doc?.colors ?? [])
+  const { colors, names, locks } = fromDoc.colors.length ? fromDoc : read(item.colors ?? [])
+
   if (!colors.length) return null
   return { colors, locks, names, seed: item.doc?.seed ?? null }
 }

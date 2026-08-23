@@ -213,11 +213,27 @@ final class SelfTest
         $targets = [
             'config'   => ['/config.php', 'Configuration file'],
             'database' => $dbFile !== '' ? ['/storage/' . $dbFile, 'Database file'] : null,
-            'wal'      => $dbFile !== '' ? ['/storage/' . $dbFile . '-wal', 'Database write-ahead log'] : null,
+            // Not 'wal': `environment()` already uses that id for the journal
+            // mode check, and the console renders both lists as one keyed
+            // `v-for`, where a repeated key lets Vue reuse the wrong element.
+            'wal_file' => $dbFile !== '' ? ['/storage/' . $dbFile . '-wal', 'Database write-ahead log'] : null,
             'storage'  => ['/storage/', 'Storage directory listing'],
             'sessions' => ['/storage/sessions/', 'Session directory'],
             'log'      => ['/storage/php-error.log', 'Error log'],
         ];
+
+        /*
+         * Does this server answer 200 for things that do not exist?
+         *
+         * A single-page app usually ships a catch-all that returns index.html
+         * for any unmatched path. Under one of those, asking for the database
+         * returns HTTP 200 and a page of HTML — and reading that as "the
+         * database is publicly downloadable" raises the loudest alarm in the
+         * console for a file nobody can actually get. When the control probe
+         * comes back 200 the probes below cannot tell the two apart, so they
+         * report inconclusive instead of crying wolf.
+         */
+        $catchAll = self::probe($base . '/storage/does-not-exist-' . bin2hex(random_bytes(8))) === 200;
 
         $results = [];
         foreach ($targets as $id => $target) {
@@ -231,8 +247,12 @@ final class SelfTest
             // clean bill of health for probes that never ran.
             $outOfTime = $deadline !== null && microtime(true) > $deadline;
             $status = $outOfTime ? 0 : self::probe($base . $path);
-            // A 000 means the loopback request itself failed, which we report
-            // as inconclusive rather than pretending it passed.
+            // A 000 means the loopback request itself failed, and a server that
+            // answers 200 for everything tells us nothing either. Both are
+            // reported as inconclusive rather than as a pass or an alarm.
+            if ($catchAll && $status === 200) {
+                $status = 0;
+            }
             $ok = $status !== 200;
             $results[] = [
                 'id'       => $id,
@@ -240,7 +260,10 @@ final class SelfTest
                 'required' => true,
                 'ok'       => $ok,
                 'detail' => $status === 0
-                    ? 'Could not complete a loopback request to ' . $path . '. Check this URL manually in a browser — it must not return the file.'
+                    ? ($catchAll
+                        ? 'This server answers HTTP 200 for paths that do not exist, so asking it for '
+                            . $path . ' proves nothing either way. Open that URL in a browser: you should see your app, not the file.'
+                        : 'Could not complete a loopback request to ' . $path . '. Check this URL manually in a browser — it must not return the file.')
                     : ($ok
                         ? 'Returns HTTP ' . $status . ' as it should.'
                         : 'SERVED WITH HTTP 200. This file is publicly downloadable. Fix the server configuration before using this installation.'),

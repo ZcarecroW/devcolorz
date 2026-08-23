@@ -129,17 +129,31 @@ async function load() {
     liked.value = result.liked
     likes.value = result.likes
 
-    const parsed: Oklch[] = []
-    const names: string[] = []
-    const source = result.doc?.colors?.length
-      ? result.doc.colors
-      : result.colors.map((hex) => ({ hex, name: '' }))
-    for (const entry of source) {
-      const color = parseColor(entry.hex)
-      if (!color) continue
-      parsed.push(color)
-      names.push(entry.name ?? '')
+    /*
+     * The stored document is preferred, the flat hex list is the fallback.
+     *
+     * `doc` is whatever was written through the API, which is not necessarily
+     * what this app writes — a document whose colors are bare strings rather
+     * than objects yielded nothing here and the page showed "could not be
+     * loaded" for a palette the server had returned perfectly well. The flat
+     * `colors` list is derived server-side and is always the right shape, so
+     * it is what an unreadable document falls back to.
+     */
+    const readColors = (source: ReadonlyArray<{ hex?: string; name?: string } | string>) => {
+      const out: { color: Oklch; name: string }[] = []
+      for (const entry of source) {
+        const hex = typeof entry === 'string' ? entry : entry?.hex
+        const color = parseColor(hex as string)
+        if (!color) continue
+        out.push({ color, name: (typeof entry === 'string' ? '' : entry?.name) ?? '' })
+      }
+      return out
     }
+
+    const entries = readColors(result.doc?.colors ?? [])
+    const usable = entries.length ? entries : readColors(result.colors ?? [])
+    const parsed = usable.map((e) => e.color)
+    const names = usable.map((e) => e.name)
     colors.value = parsed
     storedNames.value = names
     curatedNames.value = []

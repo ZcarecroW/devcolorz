@@ -75,8 +75,17 @@ export function fromSpace(color: ColorInput): Oklch {
 /**
  * Parse user input. Accepts everything culori accepts (hex, named colors,
  * rgb()/hsl()/lab()/lch()/oklab()/oklch()/color()) plus bare hex without `#`.
+ *
+ * Returns null for anything it cannot read, including input that is not a
+ * string at all. The signature says `string`, but every caller is handling
+ * data from outside the program — a pasted value, a URL fragment, a stored
+ * document from the API — and TypeScript cannot enforce a type across that
+ * boundary. Trusting it meant `parseColor(undefined)` threw a TypeError from
+ * `.trim()` instead of returning null, which is how a palette document with an
+ * unexpected shape turned the public palette page into an error screen.
  */
 export function parseColor(input: string): Oklch | null {
+  if (typeof input !== 'string') return null
   const raw = input.trim()
   if (!raw) return null
   const candidates = [raw]

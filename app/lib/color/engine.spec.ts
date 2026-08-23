@@ -3,6 +3,7 @@ import { DEFAULT_EXPORT_CONFIG } from '@/lib/export/config'
 import { buildGraph } from '@/lib/export/graph'
 import { EMITTERS_BY_ID } from '@/lib/export/emitters'
 import { makeSwatch } from '@/stores/palette'
+import { stateFromPalette } from '@/lib/palette/document'
 import { formatColor, parseColor } from './convert'
 import { apca, makeReadable, wcag, wcagLevel } from './contrast'
 import { cssGamutMap, deltaEOK, isInGamut, maxChroma } from './gamut'
@@ -724,6 +725,40 @@ describe('regressions', () => {
  * Each of these is a case the first round of fixes got wrong, found by
  * reviewing the fixes rather than the original code.
  */
+
+describe('regressions — found by driving the UI', () => {
+  it('returns null for input that is not a string, rather than throwing', () => {
+    // The signature says `string`, but every caller is handling data from
+    // outside the program. `parseColor(undefined)` threw from `.trim()`, which
+    // is how one palette document with an unexpected shape turned the public
+    // palette page into an error screen.
+    for (const bad of [undefined, null, 5, {}, [], true]) {
+      expect(() => parseColor(bad as unknown as string), String(bad)).not.toThrow()
+      expect(parseColor(bad as unknown as string), String(bad)).toBeNull()
+    }
+    // and still parses what it should
+    expect(parseColor('#3b82f6')).not.toBeNull()
+  })
+
+  it('reads a stored palette whose colors are bare strings', () => {
+    // The API stores whatever a client sends. A document written with hex
+    // strings instead of objects yielded nothing, so "open in generator" said
+    // the palette had no readable colors and the public page failed to load.
+    const asObjects = stateFromPalette({
+      colors: ['#0a0a0a', '#404040'],
+      doc: { version: 1, colors: [{ hex: '#0a0a0a' }, { hex: '#404040' }] },
+    } as never)
+    const asStrings = stateFromPalette({
+      colors: ['#0a0a0a', '#404040'],
+      doc: { version: 1, colors: ['#0a0a0a', '#404040'] },
+    } as never)
+    const noDoc = stateFromPalette({ colors: ['#0a0a0a', '#404040'] } as never)
+    for (const [label, state] of [['objects', asObjects], ['strings', asStrings], ['no doc', noDoc]] as const) {
+      expect(state, label).not.toBeNull()
+      expect(state!.colors.length, label).toBe(2)
+    }
+  })
+})
 
 describe('regressions — the fixes themselves', () => {
   it('keeps the dark ramp ordered at every floor and ceiling the panel offers', () => {
