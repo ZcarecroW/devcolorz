@@ -53,13 +53,15 @@ const KEY_CLASS =
               :key="shortcut.keys.join('+')"
               class="flex items-baseline justify-between gap-3"
             >
-              <dd class="text-sm leading-snug text-foreground">{{ shortcut.label }}</dd>
-              <dt class="flex shrink-0 items-center gap-0.5">
+              <!-- Term then definition: inside a `dl` group the `dt` comes
+                   first, and the flex row still renders label-left. -->
+              <dt class="text-sm leading-snug text-foreground">{{ shortcut.label }}</dt>
+              <dd class="flex shrink-0 items-center gap-0.5">
                 <template v-for="(key, index) in shortcut.keys" :key="key">
                   <span v-if="index > 0" class="text-[10px] text-muted-foreground">+</span>
                   <kbd :class="KEY_CLASS">{{ key }}</kbd>
                 </template>
-              </dt>
+              </dd>
             </div>
           </dl>
         </section>

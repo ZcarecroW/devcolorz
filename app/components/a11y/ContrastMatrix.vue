@@ -190,9 +190,25 @@ const fixLabel = computed(() =>
   props.metric === 'wcag' ? 'Raise this text to 4.5:1' : 'Raise this text to Lc 75',
 )
 
-function open(row: number, col: number) {
+/**
+ * The cell the detail popover was opened from.
+ *
+ * The popover has no `PopoverTrigger` — it is anchored to a position, not to
+ * an element — so reka has no trigger to hand focus back to and dropped it on
+ * `<body>` when the popover closed. A keyboard user reading down a column lost
+ * their place on every cell they inspected.
+ */
+const activeCell = ref<HTMLElement | null>(null)
+
+function open(row: number, col: number, cell: HTMLElement | null) {
+  activeCell.value = cell
   active.value = { row, col }
   detailOpen.value = true
+}
+
+function restoreFocus(event: Event) {
+  event.preventDefault()
+  activeCell.value?.focus()
 }
 
 function applyFix() {
@@ -258,7 +274,7 @@ watch(size, () => {
             :style="{ background: fills[col], width: `${cellSize}px`, height: `${cellSize}px` }"
             :disabled="row === col"
             :aria-label="row === col ? `${labels[row]} on itself` : cellLabel(row, col)"
-            @click="open(row, col)"
+            @click="open(row, col, $event.currentTarget as HTMLElement)"
           >
             <template v-if="row !== col">
               <span
@@ -291,10 +307,12 @@ watch(size, () => {
           align="start"
           class="w-72 p-3"
           :collision-padding="12"
+          aria-labelledby="contrast-detail-title"
+          @close-auto-focus="restoreFocus"
         >
           <div class="flex flex-col gap-3">
             <div>
-              <p class="text-xs font-semibold tracking-tight">
+              <p id="contrast-detail-title" class="text-xs font-semibold tracking-tight">
                 {{ detail.textLabel }} on {{ detail.backgroundLabel }}
               </p>
               <p class="text-[11px] text-muted-foreground">

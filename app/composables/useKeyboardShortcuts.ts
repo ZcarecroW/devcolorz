@@ -53,6 +53,48 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
 }
 
+/**
+ * Widgets that own an unmodified printable key themselves.
+ *
+ * A focused `<button>` is activated by Space on *keyup*, and only if the
+ * keydown was not default-prevented — so a global `preventDefault()` on Space
+ * does not merely add a second meaning to the key, it removes the first one.
+ * Before this guard existed, tabbing to any control in the studio and pressing
+ * Space re-rolled the whole palette instead of pressing the button. The same
+ * applies to the letter shortcuts and reka's typeahead: `s` inside an open
+ * Select shuffled the palette rather than jumping to an option.
+ */
+const KEY_CONSUMERS = [
+  'button',
+  '[role="button"]',
+  '[role="tab"]',
+  '[role="switch"]',
+  '[role="checkbox"]',
+  '[role="radio"]',
+  '[role="option"]',
+  '[role="menuitem"]',
+  '[role="menuitemcheckbox"]',
+  '[role="menuitemradio"]',
+  '[role="combobox"]',
+  '[role="listbox"]',
+  '[role="slider"]',
+  '[role="spinbutton"]',
+  'a[href]',
+  'summary',
+].join(', ')
+
+function ownsPlainKeys(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && target.closest(KEY_CONSUMERS) !== null
+}
+
+/** True inside a dialog, menu or listbox, where the studio's keys do not belong. */
+function inOverlay(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    target.closest('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]') !== null
+  )
+}
+
 /** The swatch element under the pointer, for the hover-scoped shortcuts. */
 function hoveredSwatchId(): string | null {
   const element = document.querySelector('[data-swatch-id]:hover')
@@ -132,6 +174,17 @@ export function useKeyboardShortcuts() {
         default:
           return
       }
+    }
+
+    // Modifier chords stay global — no browser activates a button with Ctrl+Z —
+    // but every unmodified key below belongs to the focused widget first.
+    if (
+      studio.commandOpen ||
+      studio.shortcutsOpen ||
+      inOverlay(event.target) ||
+      ownsPlainKeys(event.target)
+    ) {
+      return
     }
 
     switch (event.key) {
