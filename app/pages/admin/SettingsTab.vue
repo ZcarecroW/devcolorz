@@ -42,6 +42,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { ApiError, api } from '@/lib/api'
+import { useSessionStore } from '@/stores/session'
 import { FORMAT_LABELS } from '@/lib/color/convert'
 import { GAMUT_STRATEGY_LABELS } from '@/lib/color/gamut'
 import { INVERT_LABELS } from '@/lib/color/invert'
@@ -587,6 +588,8 @@ const GROUPS: Group[] = [
 const values = ref<Record<string, unknown>>({})
 const original = ref<Record<string, unknown>>({})
 const loading = ref(true)
+const session = useSessionStore()
+
 const saving = ref(false)
 const loadError = ref<string | null>(null)
 const saveError = ref<string | null>(null)
@@ -650,6 +653,12 @@ async function save() {
   try {
     await api.patch<Record<string, unknown>>('/admin/settings', payload)
     await load(true)
+    // Several of these settings decide what the rest of the app renders —
+    // whether sign-up asks for an invitation code, whether the site is open to
+    // anonymous visitors. `/meta` is fetched once per session, so without this
+    // the console said the setting had been saved and nothing anywhere changed
+    // until someone reloaded the page.
+    await session.loadMeta()
     toast.success(`Saved ${count} setting${count === 1 ? '' : 's'}`)
   } catch (error) {
     if (error instanceof ApiError && error.problem.errors) {
