@@ -192,9 +192,28 @@ export interface MetaResponse {
     explore: boolean
     anonymous: boolean
     captcha: boolean
+    /** Registration also needs the administrator's invitation code. */
+    inviteOnly: boolean
+    /** A new account must confirm its address by email before it can sign in. */
+    emailVerification: boolean
   }
   captcha: { provider: 'hcaptcha' | null; sitekey: string | null }
-  limits: { maxColors: number; maxPalettes: number | null }
+  limits: { maxColors: number; maxPalettes: number | null; minPasswordLength: number }
+  /**
+   * What a first-time visitor should start with.
+   *
+   * Only applied when the browser has no stored preference of its own — an
+   * administrator's default is a starting point, not an override of a choice
+   * the visitor has already made.
+   */
+  defaults?: {
+    appearance: 'light' | 'dark' | 'system'
+    format: string
+    gamut: string
+    contrastMetric: string
+    darkStrategy: string
+    swatchCount: number
+  }
   /** Present for admins: things that need attention. */
   health?: {
     wal: boolean

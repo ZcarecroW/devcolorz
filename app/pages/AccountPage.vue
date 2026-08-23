@@ -72,10 +72,6 @@ import { useStudioStore } from '@/stores/studio'
 
 const MIN_LENGTH = 12
 
-  'password passw0rd password1 letmein welcome qwerty qwertyuiop azerty 123456 1234567 12345678 123456789 1234567890 111111 000000 abc123 monkey dragon sunshine princess football baseball iloveyou admin administrator root login master shadow superman batman starwars trustno1 whatever freedom hunter ninja passwort'.split(
-    ' ',
-  )
-
 /**
  * The preview templates the studio can default to. This mirrors the preview
  * registry; when `@/components/preview` exports a manifest, import that instead
@@ -197,7 +193,12 @@ const savingPassword = ref(false)
 const passwordError = ref('')
 const passwordFieldErrors = ref<Record<string, string>>({})
 
-const strength = computed(() => scorePassword(newPassword.value))
+const strength = computed(() =>
+  scorePassword(newPassword.value, {
+    minLength: session.minPasswordLength,
+    context: [session.user?.email ?? "", session.user?.displayName ?? ""],
+  }),
+)
 
 const meterClass = computed(() => {
   if (strength.value.score <= 1) return 'bg-destructive'
@@ -226,7 +227,9 @@ async function changePassword() {
     })
     currentPassword.value = ''
     newPassword.value = ''
-    toast.success('Password changed. Other devices may still be signed in.')
+    // The server revokes every other session on a password change, and the
+    // confirmation email says so. The toast used to say the opposite.
+    toast.success('Password changed. Every other signed-in session was ended.')
   } catch (error) {
     if (error instanceof ApiError && error.isValidation && error.problem.errors) {
       passwordFieldErrors.value = error.problem.errors
@@ -702,7 +705,7 @@ onMounted(() => {
             <InfoHint
               title="Sign out everywhere"
               wide
-              text="Every session cookie for this account is invalidated at once, including the one this browser is using, so you will land back on the sign-in page. Do it after a password change if you suspect someone else had the old one: changing a password does not by itself evict a session that is already open."
+              text="Every session cookie for this account is invalidated at once, including the one this browser is using, so you will land back on the sign-in page. Changing your password already ends every other session; use this when you want to sign out here as well."
             />
           </span>
           <Button variant="outline" :disabled="signingOutAll" @click="signOutEverywhere">

@@ -23,8 +23,25 @@ export const useSessionStore = defineStore('session', () => {
   const isAdmin = computed(() => user.value?.role === 'admin')
   const needsSetup = computed(() => meta.value !== null && !meta.value.installed)
   const canRegister = computed(() => meta.value?.features.registration ?? false)
+  /**
+   * Whether the sign-up form has to ask for an invitation code.
+   *
+   * Defaults to true when the metadata has not arrived: asking for a code that
+   * turns out to be unnecessary is a nuisance, while omitting one that turns
+   * out to be required is a rejected submission.
+   */
+  const inviteRequired = computed(() => meta.value?.features.inviteOnly ?? true)
+  /** False when the server activates new accounts without a confirmation email. */
+  const emailVerificationRequired = computed(
+    () => meta.value?.features.emailVerification ?? true,
+  )
   const captchaSitekey = computed(() => meta.value?.captcha.sitekey ?? null)
   const maxColors = computed(() => meta.value?.limits.maxColors ?? 40)
+  /**
+   * The length the server will actually accept, so the meter on a sign-up form
+   * cannot call a password acceptable that the server is about to reject.
+   */
+  const minPasswordLength = computed(() => meta.value?.limits.minPasswordLength ?? 12)
 
   async function loadMeta() {
     try {
@@ -46,12 +63,26 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  /**
+   * Load metadata and the current user, once.
+   *
+   * The promise is kept so anything that needs the answer — the router guard,
+   * most of all — can await the same call instead of racing it. The guard runs
+   * on the very first navigation, before `App.vue` has mounted, so without
+   * this it would decide who you are before anyone had asked the server.
+   */
+  let booting: Promise<void> | null = null
+
   async function bootstrap() {
+    if (booting) return booting
     loading.value = true
-    await loadMeta()
-    if (meta.value?.installed) await loadUser()
-    loading.value = false
-    ready.value = true
+    booting = (async () => {
+      await loadMeta()
+      if (meta.value?.installed) await loadUser()
+      loading.value = false
+      ready.value = true
+    })()
+    return booting
   }
 
   async function login(payload: {
@@ -94,8 +125,11 @@ export const useSessionStore = defineStore('session', () => {
     isAdmin,
     needsSetup,
     canRegister,
+    inviteRequired,
+    emailVerificationRequired,
     captchaSitekey,
     maxColors,
+    minPasswordLength,
     bootstrap,
     loadMeta,
     login,
