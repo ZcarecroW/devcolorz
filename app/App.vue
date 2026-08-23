@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue'
-import { RouterView } from 'vue-router'
+import { RouterView, useRouter } from 'vue-router'
+import { blockedForAnonymous } from '@/router'
 import { Toaster } from '@/components/ui/sonner'
 import AppHeader from '@/components/shell/AppHeader.vue'
 import CvdFilters from '@/components/a11y/CvdFilters.vue'
@@ -10,6 +11,7 @@ import { useThemeStore } from '@/stores/theme'
 import type { ColorFormat } from '@/lib/color/types'
 import type { ContrastMetric } from '@/lib/color/contrast'
 
+const router = useRouter()
 const theme = useThemeStore()
 const studio = useStudioStore()
 const session = useSessionStore()
@@ -43,6 +45,16 @@ onMounted(async () => {
   theme.apply()
   await session.bootstrap()
   applyInstanceDefaults()
+
+  // The guard lets the first navigation through without waiting for `/meta`,
+  // so the wall — if this instance has one — is applied here, once the answer
+  // has actually arrived.
+  if (blockedForAnonymous(session, router.currentRoute.value.name)) {
+    void router.replace({
+      name: 'login',
+      query: { redirect: router.currentRoute.value.fullPath },
+    })
+  }
 })
 
 onBeforeUnmount(() => {

@@ -141,9 +141,11 @@ const byteLabel = computed(() =>
 
 const example = computed(() => {
   const cfg = config.value
-  const first = palette.swatches.find((s) => !cfg.overrides[s.id]?.exclude)
-  const own = first ? (cfg.overrides[first.id]?.name ?? (cfg.useNames ? first.name : '')) : ''
-  const stem = own.trim() ? own : `${cfg.fallbackStem}-1`
+  // The same stem the export will actually use, gaps and all — recomputing it
+  // here re-derived `color-1` for a swatch that exports as `color-3`.
+  const stems = stemsFor(palette.swatches, cfg)
+  const index = palette.swatches.findIndex((s) => !cfg.overrides[s.id]?.exclude)
+  const stem = index >= 0 ? stems[index] : `${cfg.fallbackStem}-1`
   return {
     base: composeName(cfg, stem),
     scale: composeName(cfg, stem, cfg.scalePreset === 'radix' ? '9' : '500'),
@@ -1115,7 +1117,7 @@ const precisionApplies = computed(() => !PRECISION_FREE.includes(config.value.fo
       </p>
 
       <pre
-        v-else
+        v-if="!result.error"
         class="scroll-slim max-h-72 overflow-auto rounded-md border bg-background/60 p-2 font-mono text-[10px] leading-relaxed"
         :data-language="emitter.language"
       >{{ result.text }}</pre>

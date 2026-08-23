@@ -29,6 +29,12 @@ final class Cron
             'trending' => static fn (): string => self::trending(),
             'maintain' => static fn (): string => self::maintain(),
             'backup'   => static fn (): string => self::backup(),
+            // Last, and only when the answer is stale. The probe makes six
+            // loopback requests and on a host whose loopback is firewalled it
+            // spends the whole connect timeout on each — put anywhere earlier
+            // it ate the deadline and the nightly backup was recorded as
+            // "skipped — out of time" on every single run.
+            'exposure' => static fn (): string => self::exposure($deadline),
         ];
 
         foreach ($jobs as $name => $job) {
@@ -109,14 +115,32 @@ final class Cron
     {
         Db::checkpoint();
         Db::optimize();
-        // The exposure probe lives here, not on the admin's page load: six
-        // serial loopback requests belong on a schedule, not in front of the
-        // first render.
-        $exposure = SelfTest::refreshExposure();
-        $verdict = $exposure['exposed'] === null
-            ? 'exposure inconclusive'
-            : ($exposure['exposed'] ? 'STORAGE IS EXPOSED' : 'storage not exposed');
-        return 'checkpointed and optimized, ' . $verdict;
+        return 'checkpointed and optimized';
+    }
+
+    /**
+     * Re-check whether anything sensitive is web-reachable.
+     *
+     * Its own job, so a slow probe cannot starve the ones that matter, and
+     * hourly rather than every tick: the answer only changes when the server
+     * configuration does. A truncated run degrades safely — a target that was
+     * never reached leaves no check, and `refreshExposure` reads that as
+     * inconclusive rather than as a pass.
+     */
+    private static function exposure(float $deadline): string
+    {
+        $status = SelfTest::exposureStatus();
+        $age = time() - $status['checkedAt'];
+        if ($status['exposed'] !== null && $age < 3600) {
+            return sprintf('checked %ds ago, skipped', $age);
+        }
+
+        $result = SelfTest::refreshExposure(SelfTest::exposure($deadline - 1));
+        return match ($result['exposed']) {
+            true    => 'STORAGE IS EXPOSED',
+            false   => 'storage not reachable',
+            default => 'inconclusive — could not complete the loopback requests',
+        };
     }
 
     /**

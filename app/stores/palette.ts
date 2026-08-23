@@ -195,9 +195,22 @@ export const usePaletteStore = defineStore('palette', () => {
       (anchorId ? swatches.value.find((s) => s.id === anchorId) : undefined) ??
       swatches.value.find((s) => s.locked) ??
       swatches.value[0]
-    if (!anchor) return
+    if (!anchor || allLocked.value) return
+
     const generated = harmony(anchor.color, id, { count: count.value, ...options })
-    const merged = swatches.value.map((s, i) => (s.locked ? s.color : (generated[i] ?? s.color)))
+    /*
+     * Every scheme contains the anchor itself. Where in the returned array it
+     * sits depends on the scheme — first for most, the middle for analogous —
+     * so it cannot be dropped by index. Dropping anything that reproduces a
+     * locked colour is the general rule: placed on an unlocked slot it would
+     * make the palette contain that colour twice, which is precisely what the
+     * lock was protecting against.
+     */
+    const locked = swatches.value.filter((s) => s.locked).map((s) => s.color)
+    const usable = generated.filter((c) => !locked.some((l) => deltaEOK(c, l) * 100 < 1))
+
+    let next = 0
+    const merged = swatches.value.map((s) => (s.locked ? s.color : (usable[next++] ?? s.color)))
     setColors(merged, `Harmony: ${id}`)
   }
 

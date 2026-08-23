@@ -43,9 +43,25 @@ export const useSessionStore = defineStore('session', () => {
    */
   const minPasswordLength = computed(() => meta.value?.limits.minPasswordLength ?? 12)
 
+  /**
+   * A deadline for the bootstrap calls.
+   *
+   * The router guard awaits `bootstrap()` before the first navigation resolves,
+   * so an unreachable or hung backend would hold the app on a blank page
+   * indefinitely. Timing out drops into the offline path the store is already
+   * built for, where everything except accounts still works.
+   */
+  function deadline(ms = 8000): AbortSignal | undefined {
+    if (typeof AbortSignal?.timeout === 'function') return AbortSignal.timeout(ms)
+    if (typeof AbortController !== 'function') return undefined
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), ms)
+    return controller.signal
+  }
+
   async function loadMeta() {
     try {
-      meta.value = await api.get<MetaResponse>('/meta')
+      meta.value = await api.get<MetaResponse>('/meta', { signal: deadline() })
       offline.value = false
     } catch (error) {
       // A 404 here means the SPA is running without its backend, which is a
@@ -57,7 +73,7 @@ export const useSessionStore = defineStore('session', () => {
 
   async function loadUser() {
     try {
-      user.value = await api.get<UserResponse>('/auth/me')
+      user.value = await api.get<UserResponse>('/auth/me', { signal: deadline() })
     } catch {
       user.value = null
     }

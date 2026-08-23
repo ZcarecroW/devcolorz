@@ -7,7 +7,7 @@
  * before it does and the strip keeps the space it needs down to mobile.
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { Braces, Image as ImageIcon, Save, ScanEye, Shuffle, Sliders } from '@lucide/vue'
 import { useMediaQuery } from '@vueuse/core'
 import { toast } from 'vue-sonner'
@@ -49,18 +49,6 @@ const panels = [
 ] as const
 
 /**
- * Restore the palette on mount.
- *
- * The guard matters: this component remounts every time you visit the theme
- * editor and come back, and re-initialising unconditionally rolled a brand-new
- * random palette each time. The work in progress simply vanished — and because
- * the replacement had a different average lightness, the preview would also
- * flip between light and dark for no reason the user could see.
- *
- * A palette in the URL always wins; otherwise an existing palette is kept, and
- * only a genuinely empty store gets a fresh roll.
- */
-/**
  * Apply a palette that arrived in the URL.
  *
  * One definition for both entry points. They used to be written twice and had
@@ -79,11 +67,33 @@ async function applyIncoming(next: PaletteState | null) {
   toast.success(`Loaded ${next.colors.length} colors from the link`)
 }
 
+/**
+ * Restore the palette on mount.
+ *
+ * The guard matters: this component remounts every time you visit the theme
+ * editor and come back, and re-initialising unconditionally rolled a brand-new
+ * random palette each time. The work in progress simply vanished — and because
+ * the replacement had a different average lightness, the preview would also
+ * flip between light and dark for no reason the user could see.
+ *
+ * A palette in the URL always wins; otherwise an existing palette is kept, and
+ * only a genuinely empty store gets a fresh roll.
+ */
 onMounted(async () => {
   const encoded = route.params.state as string | undefined
-  if (encoded) {
-    await applyIncoming(await decodeState(encoded))
+  // Decoded, not merely present: `/p/:state` matches any junk a chat client
+  // may have wrapped or truncated, and returning on the parameter alone left
+  // the studio with no palette at all and no way to make one but the count
+  // button.
+  const incoming = typeof encoded === 'string' && encoded ? await decodeState(encoded) : null
+  if (incoming) {
+    await applyIncoming(incoming)
     return
+  }
+  if (encoded) {
+    toast.error('That link could not be read', {
+      description: 'It looks truncated. Here is a fresh palette instead.',
+    })
   }
   if (!palette.count) {
     /*
@@ -117,6 +127,10 @@ watch(
   () => route.params.state,
   async (encoded) => {
     if (typeof encoded !== 'string' || !encoded) return
+    // Our own write, echoed back. Decoding and comparing colours is not enough:
+    // the palette may have moved on again in the meantime, and the stale value
+    // would then be applied over the newer edit.
+    if (encoded === selfWritten) return
     await applyIncoming(await decodeState(encoded))
   },
 )
@@ -138,57 +152,96 @@ useKeyboardShortcuts()
  * seconds.
  */
 let urlTimer: number | undefined
+/** The last value this page wrote, so its own write is not read back as an incoming link. */
+let selfWritten: string | null = null
+let leaving = false
+
 watch(
   () => palette.swatches,
   () => {
     window.clearTimeout(urlTimer)
     urlTimer = window.setTimeout(async () => {
-      if (!palette.count) return
+      if (leaving || !palette.count) return
       const state = await encodeState(palette.toState())
-      if (route.params.state === state) return
+      // Re-checked after the await: the user may have navigated away, and a
+      // pending replace would then pull them back to the studio.
+      if (leaving || route.params.state === state) return
+      selfWritten = state
       void router.replace({ name: 'shared', params: { state } })
     }, 500)
   },
   { deep: false },
 )
 
-onUnmounted(() => window.clearTimeout(urlTimer))
+onBeforeRouteLeave(() => {
+  leaving = true
+  window.clearTimeout(urlTimer)
+})
 
-const leftOpen = computed({
-  get: () => studio.leftPanelOpen,
-  set: (v: boolean) => (studio.leftPanelOpen = v),
-})
-const rightOpen = computed({
-  get: () => studio.rightPanelOpen,
-  set: (v: boolean) => (studio.rightPanelOpen = v),
-})
+onUnmounted(() => window.clearTimeout(urlTimer))
 
 /**
  * Below `lg` both panels are sheets over the palette rather than columns
- * beside it, so an open one hides the thing the page is for. They start closed
- * at that width, and opening one closes the other — two full-width sheets
- * stacked on top of each other have no legible z-order and no way back.
+ * beside it, so an open one hides the thing the page is for.
+ *
+ * They get their own state at that width, and it starts closed. Writing the
+ * store instead meant one visit on a phone — or one narrow window — persisted
+ * "both panels closed" and the next desktop session opened with no controls
+ * and no previews, a preference the user never expressed.
+ */
+const leftSheet = ref(false)
+const rightSheet = ref(false)
+
+const leftOpen = computed({
+  get: () => (wide.value ? studio.leftPanelOpen : leftSheet.value),
+  set: (v: boolean) => {
+    if (wide.value) studio.leftPanelOpen = v
+    else leftSheet.value = v
+  },
+})
+const rightOpen = computed({
+  get: () => (wide.value ? studio.rightPanelOpen : rightSheet.value),
+  set: (v: boolean) => {
+    if (wide.value) studio.rightPanelOpen = v
+    else rightSheet.value = v
+  },
+})
+
+// One sheet at a time: two full-width sheets stacked have no legible z-order.
+watch(leftSheet, (open) => {
+  if (open) rightSheet.value = false
+})
+watch(rightSheet, (open) => {
+  if (open) leftSheet.value = false
+})
+
+/*
+ * The keyboard shortcuts and the command palette write the stored preference
+ * directly. At sheet widths that value is not what is on screen, so a change
+ * to it is read as "the user asked to toggle" and mirrored onto the sheet.
  */
 watch(
-  wide,
-  (isWide) => {
-    if (isWide) return
-    studio.leftPanelOpen = false
-    studio.rightPanelOpen = false
+  () => studio.leftPanelOpen,
+  () => {
+    if (!wide.value) leftSheet.value = !leftSheet.value
   },
-  { immediate: true },
+)
+watch(
+  () => studio.rightPanelOpen,
+  () => {
+    if (!wide.value) rightSheet.value = !rightSheet.value
+  },
+)
+watch(
+  () => studio.activePanel,
+  () => {
+    if (!wide.value) leftSheet.value = true
+  },
 )
 
-watch(leftOpen, (open) => {
-  if (open && !wide.value) studio.rightPanelOpen = false
-})
-watch(rightOpen, (open) => {
-  if (open && !wide.value) studio.leftPanelOpen = false
-})
-
 function closeSheets() {
-  studio.leftPanelOpen = false
-  studio.rightPanelOpen = false
+  leftSheet.value = false
+  rightSheet.value = false
 }
 
 function openAdjust(id: string) {
@@ -208,7 +261,12 @@ async function copyLink() {
 
 <template>
   <div class="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-    <StudioToolbar @copy-link="copyLink" />
+    <StudioToolbar
+      :left-open="leftOpen"
+      :right-open="rightOpen"
+      @copy-link="copyLink"
+      @toggle-panel="(side) => (side === 'left' ? (leftOpen = !leftOpen) : (rightOpen = !rightOpen))"
+    />
 
     <!--
       `relative` anchors the narrow-screen drawer to this row. Without it the

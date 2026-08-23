@@ -717,3 +717,70 @@ describe('regressions', () => {
     expect(pale).toContain('#111111')
   })
 })
+
+/*
+ * Second round.
+ *
+ * Each of these is a case the first round of fixes got wrong, found by
+ * reviewing the fixes rather than the original code.
+ */
+
+describe('regressions — the fixes themselves', () => {
+  it('keeps the dark ramp ordered at every floor and ceiling the panel offers', () => {
+    // The band anchors were fixed constants while both bounds are sliders, so
+    // raising the floor past 0.315 reversed the ramp again and lowering the
+    // ceiling to 0.6 flattened several steps onto one value.
+    const light = generateScale('#3b82f6', { preset: 'tailwind', pinSeed: false })
+    for (const strategy of ['radix', 'material', 'oklch-curve'] as const) {
+      for (let darkFloor = 0; darkFloor <= 0.4; darkFloor += 0.05) {
+        for (let darkCeiling = 0.6; darkCeiling <= 1.0001; darkCeiling += 0.1) {
+          const dark = light.map((step) => toDark(step.color, { strategy, darkFloor, darkCeiling }))
+          const label = `${strategy} floor ${darkFloor.toFixed(2)} ceiling ${darkCeiling.toFixed(2)}`
+          for (let i = 1; i < dark.length; i++) {
+            expect(dark[i].l!, `${label} step ${i}`).toBeGreaterThan(dark[i - 1].l! - 1e-9)
+          }
+        }
+      }
+    }
+  })
+
+  it('invents distinct chart colors from a single achromatic swatch', () => {
+    // A stepping search runs out at the clamp and re-emits a value it had just
+    // rejected, so white and black — the two extremes — repeated a series.
+    for (const hex of ['#ffffff', '#000000', '#808080']) {
+      const roles = assignRoles([parseColor(hex)!], { chartCount: 6 })
+      const charts = roles.chart.map((entry) => formatColor(entry.color, 'hex'))
+      expect(new Set(charts).size, hex).toBe(6)
+    }
+  })
+
+  it('nests a Tailwind v3 config that has both a base color and its scale', () => {
+    // `tree[stem]` already held the base value as a string, and assigning a
+    // step onto a string throws — which is the emitter's whole purpose.
+    const swatches = [makeSwatch(parseColor('#3b82f6')!, 'Brand')]
+    const graph = buildGraph(swatches, {
+      ...DEFAULT_EXPORT_CONFIG,
+      emitScales: true,
+      emitAlpha: true,
+    })
+    const js = EMITTERS_BY_ID.tailwind3.emit(graph)
+    expect(js).toContain('DEFAULT')
+    expect(js).toContain('"500"')
+  })
+
+  it('never puts a locked color in the palette twice when applying a harmony', () => {
+    // Every scheme contains the anchor itself, at an index that depends on the
+    // scheme, so it landed on some other slot beside the locked original.
+    for (const id of ['complementary', 'analogous', 'triadic'] as const) {
+      for (let lockAt = 0; lockAt < 5; lockAt++) {
+        const colors = harmony('#3b82f6', id, { count: 5, vary: false })
+        const locked = colors[lockAt]
+        // Same rule the store applies: drop anything that reproduces a lock.
+        const usable = colors.filter((c) => deltaEOK(c, locked) * 100 >= 1)
+        const merged = colors.map((c, i) => (i === lockAt ? locked : usable.shift() ?? c))
+        const hexes = merged.map((c) => formatColor(c, 'hex'))
+        expect(new Set(hexes).size, `${id} locked at ${lockAt}`).toBe(hexes.length)
+      }
+    }
+  })
+})

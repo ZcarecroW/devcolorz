@@ -54,17 +54,15 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 /**
- * Widgets that own an unmodified printable key themselves.
+ * Widgets that swallow Space to activate themselves.
  *
  * A focused `<button>` is activated by Space on *keyup*, and only if the
  * keydown was not default-prevented — so a global `preventDefault()` on Space
  * does not merely add a second meaning to the key, it removes the first one.
- * Before this guard existed, tabbing to any control in the studio and pressing
- * Space re-rolled the whole palette instead of pressing the button. The same
- * applies to the letter shortcuts and reka's typeahead: `s` inside an open
- * Select shuffled the palette rather than jumping to an option.
+ * Tabbing to any control in the studio and pressing Space re-rolled the whole
+ * palette instead of pressing the button.
  */
-const KEY_CONSUMERS = [
+const ACTIVATION_CONSUMERS = [
   'button',
   '[role="button"]',
   '[role="tab"]',
@@ -76,15 +74,32 @@ const KEY_CONSUMERS = [
   '[role="menuitemcheckbox"]',
   '[role="menuitemradio"]',
   '[role="combobox"]',
-  '[role="listbox"]',
-  '[role="slider"]',
-  '[role="spinbutton"]',
   'a[href]',
   'summary',
 ].join(', ')
 
-function ownsPlainKeys(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && target.closest(KEY_CONSUMERS) !== null
+/**
+ * Widgets where a printable key jumps to a matching entry.
+ *
+ * Narrower than the activation list on purpose. Treating every focusable
+ * control as a typeahead target took away `r`, `l`, `d`, `[` and `]` from
+ * anyone whose focus happened to be resting on a tab or a button — which,
+ * after clicking a panel tab, is everyone.
+ */
+const TYPEAHEAD_CONSUMERS = [
+  '[role="combobox"]',
+  '[role="listbox"]',
+  '[role="option"]',
+  '[role="menu"]',
+  '[role="menuitem"]',
+  '[role="menuitemcheckbox"]',
+  '[role="menuitemradio"]',
+  '[role="slider"]',
+  '[role="spinbutton"]',
+].join(', ')
+
+function ownsKey(target: EventTarget | null, selector: string): boolean {
+  return target instanceof HTMLElement && target.closest(selector) !== null
 }
 
 /** True inside a dialog, menu or listbox, where the studio's keys do not belong. */
@@ -176,19 +191,19 @@ export function useKeyboardShortcuts() {
       }
     }
 
-    // Modifier chords stay global — no browser activates a button with Ctrl+Z —
-    // but every unmodified key below belongs to the focused widget first.
-    if (
-      studio.commandOpen ||
-      studio.shortcutsOpen ||
-      inOverlay(event.target) ||
-      ownsPlainKeys(event.target)
-    ) {
+    // Modifier chords stay global — no browser activates a button with Ctrl+Z.
+    // Below this line the keys are unmodified, so an open overlay owns them.
+    if (studio.commandOpen || studio.shortcutsOpen || inOverlay(event.target)) {
       return
     }
+    // A typeahead widget owns every printable key; everything else only owns
+    // the key it is actually activated with.
+    if (ownsKey(event.target, TYPEAHEAD_CONSUMERS)) return
 
     switch (event.key) {
       case ' ':
+        // Space belongs to the focused control, if there is one.
+        if (ownsKey(event.target, ACTIVATION_CONSUMERS)) return
         event.preventDefault()
         palette.roll()
         return

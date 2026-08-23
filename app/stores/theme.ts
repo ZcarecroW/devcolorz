@@ -189,10 +189,13 @@ export const useThemeStore = defineStore('theme', () => {
 
   function setAppearance(next: Appearance) {
     appearance.value = next
+    // A choice, however it was made, stops the instance default applying.
+    appearanceIsDefault.value = false
   }
 
   function toggleAppearance() {
     appearance.value = mode.value === 'dark' ? 'light' : 'dark'
+    appearanceIsDefault.value = false
   }
 
   function selectPreset(id: string) {

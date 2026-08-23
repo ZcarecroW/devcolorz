@@ -70,7 +70,6 @@ import type { ColorFormat } from '@/lib/color/types'
 import { useSessionStore } from '@/stores/session'
 import { useStudioStore } from '@/stores/studio'
 
-const MIN_LENGTH = 12
 
 /**
  * The preview templates the studio can default to. This mirrors the preview
@@ -582,7 +581,7 @@ onMounted(() => {
         <CardHeader>
           <CardTitle class="text-base">Password</CardTitle>
           <CardDescription>
-            At least {{ MIN_LENGTH }} characters. Pasting from a password manager is never blocked.
+            At least {{ session.minPasswordLength }} characters. Pasting from a password manager is never blocked.
           </CardDescription>
         </CardHeader>
         <CardContent class="flex flex-col gap-4">

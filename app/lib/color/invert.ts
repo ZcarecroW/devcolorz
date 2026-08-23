@@ -97,9 +97,22 @@ function curveLightness(l: number, chroma: number, floor: number, ceiling: numbe
   // Surfaces and ink: flip into the usable dark band.
   const surface = floor + (1 - l) * (ceiling - floor)
 
-  // Accents: land between 62% and 88%, darker originals lifted further, so the
-  // result reads on a dark background while preserving the palette's ordering.
-  const accent = 0.62 + (1 - l) * 0.26
+  /*
+   * Accents: land between 62% and 88% at the default band, darker originals
+   * lifted further, so the result reads on a dark background while preserving
+   * the palette's ordering.
+   *
+   * Expressed as a fraction of the legal band rather than as fixed numbers.
+   * Both bounds are user-controlled, and at a ceiling of 0.8 — which the
+   * export panel offers — the fixed band ran past it, so `Math.min(ceiling, …)`
+   * flattened the top of the ramp onto one value and reversed the order of the
+   * steps just below it. At the default floor and ceiling this reproduces
+   * 0.62–0.88 exactly.
+   */
+  const span = ceiling - floor
+  const accentLow = floor + 0.60759 * span
+  const accentHigh = floor + 0.93671 * span
+  const accent = accentLow + (1 - l) * (accentHigh - accentLow)
 
   // 0.03 is about where a colour stops looking like a tinted grey; by 0.10 it
   // is unambiguously an accent.
@@ -124,19 +137,26 @@ function radixLightness(l: number, floor: number, ceiling: number): number {
    * two, so a hover state built as "600 idle, 700 pressed" got brighter on
    * press. Monotonically non-increasing in `l`, which is what makes a
    * descending light ramp produce an ascending dark one.
+   *
+   * The anchors are clamped once, in a chain, rather than each band being
+   * clamped where it returns. Both bounds are user-controlled — the export
+   * panel's floor reaches 0.4 and its ceiling bottoms out at 0.6 — so fixed
+   * anchors outside that window reversed the ramp again at one end, while
+   * clamping per band collapsed several steps onto one value at the other.
    */
-  const a90 = floor + 0.06 // where the background band ends
-  const a75 = a90 + 0.075 // component backgrounds
-  const a55 = 0.45 // borders
-  const a40 = 0.5 // solid brand colors: nearly flat, so brand survives
-  const a25 = 0.72 // low-contrast text
+  const top = Math.max(floor, ceiling)
+  const a90 = Math.min(top, floor + 0.06) // where the background band ends
+  const a75 = Math.min(top, a90 + 0.075) // component backgrounds
+  const a55 = Math.min(top, Math.max(a75, 0.45)) // borders
+  const a40 = Math.min(top, Math.max(a55, 0.5)) // solid brand: nearly flat
+  const a25 = Math.min(top, Math.max(a40, 0.72)) // low-contrast text
 
-  if (l >= 0.9) return floor + (1 - l) * 0.6
+  if (l >= 0.9) return floor + (1 - l) * ((a90 - floor) / 0.1)
   if (l >= 0.75) return a90 + (0.9 - l) * ((a75 - a90) / 0.15)
   if (l >= 0.55) return a75 + (0.75 - l) * ((a55 - a75) / 0.2)
-  if (l >= 0.4) return Math.min(ceiling, a55 + (0.55 - l) * ((a40 - a55) / 0.15))
-  if (l >= 0.25) return Math.min(ceiling, a40 + (0.4 - l) * ((a25 - a40) / 0.15))
-  return Math.min(ceiling, a25 + (0.25 - l) * ((ceiling - a25) / 0.25))
+  if (l >= 0.4) return a55 + (0.55 - l) * ((a40 - a55) / 0.15)
+  if (l >= 0.25) return a40 + (0.4 - l) * ((a25 - a40) / 0.15)
+  return a25 + (0.25 - l) * ((top - a25) / 0.25)
 }
 
 /**

@@ -219,7 +219,15 @@ export interface MetaResponse {
     wal: boolean
     cronLastRun: number | null
     outboxQueued: number
-    storageExposed: boolean
+    /**
+     * Whether anything sensitive is web-reachable.
+     *
+     * Tri-state. `null` means the probe has not run or could not complete,
+     * which is not the same as "safe" and must not be rendered as such.
+     */
+    storageExposed: boolean | null
+    /** When the verdict above was last established. */
+    storageCheckedAt?: number | null
   }
 }
 

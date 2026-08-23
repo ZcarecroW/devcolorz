@@ -212,7 +212,14 @@ export const tailwind3Emitter: Emitter = {
       if (cut > 0) {
         const stem = name.slice(0, cut)
         const step = name.slice(cut + 1)
-        const bucket = (tree[stem] ??= {}) as Record<string, string>
+        // The bare colour may already be sitting on this key — `brand` before
+        // `brand-500`. Tailwind's own convention for a bucket that also has a
+        // value of its own is `DEFAULT`; assigning a step onto the string
+        // threw instead, which broke the emitter for the nesting it exists for.
+        const existing = tree[stem]
+        const bucket = (typeof existing === 'string'
+          ? (tree[stem] = { DEFAULT: existing })
+          : (tree[stem] ??= {})) as Record<string, string>
         bucket[step] = value(token.light, config)
       } else {
         tree[name] = value(token.light, config)

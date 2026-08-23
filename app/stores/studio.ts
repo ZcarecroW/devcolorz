@@ -69,7 +69,7 @@ function load(): { values: Persisted; restored: boolean } {
 export const useStudioStore = defineStore('studio', () => {
   const { values: saved, restored } = load()
   /**
-   * False on a browser that has never used this instance.
+   * True on a browser that has never used this instance.
    *
    * The administrator's engine defaults are applied only then: once a visitor
    * has picked a notation or a contrast metric, a server-side default has no

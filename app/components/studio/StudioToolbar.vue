@@ -53,7 +53,16 @@ import { MAX_SWATCHES, MIN_SWATCHES, usePaletteStore, type SortKey } from '@/sto
 import { useStudioStore } from '@/stores/studio'
 import type { ColorFormat } from '@/lib/color/types'
 
-const emit = defineEmits<{ copyLink: [] }>()
+const emit = defineEmits<{ copyLink: []; togglePanel: ['left' | 'right'] }>()
+
+/**
+ * The panels' effective state, not the stored preference.
+ *
+ * Below `lg` they are sheets whose state the page keeps locally, so the
+ * toolbar has to be told rather than read the store — otherwise the button
+ * shows one thing and does another on a phone.
+ */
+const props = defineProps<{ leftOpen: boolean; rightOpen: boolean }>()
 
 const palette = usePaletteStore()
 const studio = useStudioStore()
@@ -108,12 +117,12 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
         variant="ghost"
         size="icon-sm"
         class="shrink-0"
-        :aria-label="studio.leftPanelOpen ? 'Hide the controls' : 'Show the controls'"
-        :title="studio.leftPanelOpen ? 'Hide the controls' : 'Show the controls'"
-        :aria-pressed="studio.leftPanelOpen"
-        @click="studio.leftPanelOpen = !studio.leftPanelOpen"
+        :aria-label="props.leftOpen ? 'Hide the controls' : 'Show the controls'"
+        :title="props.leftOpen ? 'Hide the controls' : 'Show the controls'"
+        :aria-pressed="props.leftOpen"
+        @click="emit('togglePanel', 'left')"
       >
-        <PanelLeftClose v-if="studio.leftPanelOpen" />
+        <PanelLeftClose v-if="props.leftOpen" />
         <PanelLeftOpen v-else />
       </Button>
 
@@ -342,12 +351,12 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
         <Button
           variant="ghost"
           size="icon-sm"
-          :aria-label="studio.rightPanelOpen ? 'Hide the previews' : 'Show the previews'"
-          :title="studio.rightPanelOpen ? 'Hide the previews' : 'Show the previews'"
-          :aria-pressed="studio.rightPanelOpen"
-          @click="studio.rightPanelOpen = !studio.rightPanelOpen"
+          :aria-label="props.rightOpen ? 'Hide the previews' : 'Show the previews'"
+          :title="props.rightOpen ? 'Hide the previews' : 'Show the previews'"
+          :aria-pressed="props.rightOpen"
+          @click="emit('togglePanel', 'right')"
         >
-          <PanelRightClose v-if="studio.rightPanelOpen" />
+          <PanelRightClose v-if="props.rightOpen" />
           <PanelRightOpen v-else />
         </Button>
         <Button

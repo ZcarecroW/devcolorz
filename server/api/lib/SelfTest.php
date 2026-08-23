@@ -202,7 +202,7 @@ final class SelfTest
      *
      * @return list<array{id: string, label: string, ok: bool, required: bool, detail: string}>
      */
-    public static function exposure(): array
+    public static function exposure(?float $deadline = null): array
     {
         // `baseUrl()` rather than the request host: this also runs from cron,
         // and a CLI invocation has no HTTP_HOST at all — it would have probed
@@ -225,7 +225,12 @@ final class SelfTest
                 continue;
             }
             [$path, $label] = $target;
-            $status = self::probe($base . $path);
+            // Out of time reports the remaining targets as *unchecked* rather
+            // than dropping them. Dropping them would leave a shorter list in
+            // which nothing failed, and `refreshExposure` would read that as a
+            // clean bill of health for probes that never ran.
+            $outOfTime = $deadline !== null && microtime(true) > $deadline;
+            $status = $outOfTime ? 0 : self::probe($base . $path);
             // A 000 means the loopback request itself failed, which we report
             // as inconclusive rather than pretending it passed.
             $ok = $status !== 200;

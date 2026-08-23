@@ -126,9 +126,41 @@ export const router = createRouter({
  * The guard awaits `bootstrap()` rather than reading `ready`: it runs on the
  * very first navigation, before the app has mounted, so the answer does not
  * exist yet. `bootstrap()` is idempotent, so this costs one request in total.
+ *
+ * It only waits for routes whose answer depends on who you are. The studio
+ * needs no backend, and holding first paint behind two round-trips to a server
+ * that may not be there is a worse failure than a redirect arriving a moment
+ * late. The sign-in wall is applied again from `App.vue` once the metadata has
+ * landed, which is what covers the very first navigation.
  */
+const OPEN_TO_ALL = ['login', 'register', 'forgot', 'reset', 'verify', 'setup', 'not-found']
+
+/** True when this instance refuses anonymous visitors and this is not an auth page. */
+export function blockedForAnonymous(
+  session: ReturnType<typeof useSessionStore>,
+  name: unknown,
+): boolean {
+  return Boolean(
+    session.meta?.installed &&
+      session.meta.features.anonymous === false &&
+      !session.isAuthenticated &&
+      !OPEN_TO_ALL.includes(String(name)),
+  )
+}
+
 router.beforeEach(async (to) => {
   const session = useSessionStore()
+
+  // Only the routes whose answer depends on who you are wait for the server.
+  // Everything else — the studio above all, which needs no backend at all —
+  // renders immediately and picks up the session when it arrives.
+  const needsSession =
+    Boolean(to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.guestOnly) ||
+    blockedForAnonymous(session, to.name)
+  if (!needsSession) {
+    void session.bootstrap()
+    return true
+  }
   await session.bootstrap()
 
   // No forced redirect to the wizard: the generator is fully usable before
@@ -153,13 +185,7 @@ router.beforeEach(async (to) => {
    * there is no endpoint to gate. Auth and the setup wizard stay reachable, or
    * there would be no way through the wall.
    */
-  const openToAll = ['login', 'register', 'forgot', 'reset', 'verify', 'setup', 'not-found']
-  if (
-    session.meta?.installed &&
-    session.meta.features.anonymous === false &&
-    !session.isAuthenticated &&
-    !openToAll.includes(String(to.name))
-  ) {
+  if (blockedForAnonymous(session, to.name)) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
 

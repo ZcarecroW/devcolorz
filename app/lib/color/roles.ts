@@ -414,21 +414,28 @@ export function assignRoles(palette: ColorInput[], options: Partial<RoleOptions>
         'css4',
       )
     } else {
-      // Alternate above and below the seed, widening each time, and stop at
-      // the first step that is far enough from every colour already chosen.
-      const base = lightnessOf(seed.color)
+      /*
+       * Grey has one axis, so take the lightness in the usable band that is
+       * farthest from every lightness already in the series.
+       *
+       * A stepping search cannot do this. The clamp at either end collapses a
+       * whole direction onto one bound, so once the steps run out it emits a
+       * value it had just rejected — which for a single white or black swatch
+       * meant two of the six series really were the same grey.
+       */
       const h = hueOf(seed.color)
-      candidate = { mode: 'oklch', l: base, c: 0, h }
-      for (let step = 1; step <= 8; step++) {
-        const delta = (step % 2 === 0 ? -1 : 1) * Math.ceil(step / 2) * 0.11
-        const l = Math.min(0.94, Math.max(0.16, base + delta))
-        const attempt: Oklch = { mode: 'oklch', l, c: 0, h }
-        if (chart.every((existing) => Math.abs(lightnessOf(existing.color) - l) > 0.07)) {
-          candidate = attempt
-          break
+      const taken = chart.map((existing) => lightnessOf(existing.color))
+      let bestL = 0.16
+      let bestGap = -1
+      for (let i = 0; i <= 78; i++) {
+        const l = 0.16 + i * 0.01
+        const gap = taken.length ? Math.min(...taken.map((t) => Math.abs(t - l))) : 1
+        if (gap > bestGap) {
+          bestGap = gap
+          bestL = l
         }
-        candidate = attempt
       }
+      candidate = { mode: 'oklch', l: bestL, c: 0, h }
     }
 
     chart.push(derivedValue(candidate))
