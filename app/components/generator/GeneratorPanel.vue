@@ -107,8 +107,14 @@ function rerollPreview() {
 function applyPreview(index: number) {
   const color = preview.value[index]
   if (!color) return
-  const target = palette.swatches.find((s) => !s.locked) ?? palette.swatches[0]
-  if (!target) return
+  // No fallback to swatches[0]: when every colour is locked there is no slot
+  // the user has left writable, and overwriting one anyway contradicted the
+  // lock that is still shown lit on that swatch.
+  const target = palette.swatches.find((s) => !s.locked)
+  if (!target) {
+    allLockedNotice()
+    return
+  }
   palette.setColor(target.id, color, 'Pick from preview')
 }
 

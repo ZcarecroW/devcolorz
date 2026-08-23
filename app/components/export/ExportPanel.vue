@@ -251,10 +251,21 @@ function driftClass(drift: number): string {
 const alphaDraft = ref('')
 
 function addAlphaStep() {
+  // The field used to be cleared before the value was checked, so typing 150
+  // or a step already in the list emptied the box and added nothing — the same
+  // thing a successful add looks like, with no reason given.
   const step = Math.round(Number(alphaDraft.value))
+  if (!Number.isFinite(step) || step < 1 || step > 99) {
+    toast.error('Opacity steps run from 1 to 99', {
+      description: 'They are percentages of full opacity.',
+    })
+    return
+  }
+  if (config.value.alphaSteps.includes(step)) {
+    toast.info(`${step}% is already in the list`)
+    return
+  }
   alphaDraft.value = ''
-  if (!Number.isFinite(step) || step < 1 || step > 99) return
-  if (config.value.alphaSteps.includes(step)) return
   patch({ alphaSteps: [...config.value.alphaSteps, step].sort((a, b) => a - b) })
 }
 

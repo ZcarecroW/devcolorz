@@ -228,11 +228,42 @@ final class Db
         self::run('VACUUM INTO ?', [$target]);
     }
 
-    public static function checkpoint(): void
+    /**
+     * Checkpoint the write-ahead log, and say what actually happened.
+     *
+     * `PRAGMA wal_checkpoint` answers with three columns: a busy flag, the
+     * number of pages in the log, and the number it managed to move into the
+     * database. A busy result means a reader still holds the log open and
+     * nothing was truncated — which the console used to report as success.
+     *
+     * @return array{ran: bool, detail: string}
+     */
+    public static function checkpoint(): array
     {
-        if (self::$wal) {
-            self::connect()->exec('PRAGMA wal_checkpoint(TRUNCATE)');
+        if (!self::$wal) {
+            return [
+                'ran'    => false,
+                'detail' => 'This database is not in WAL mode, so there is no log to checkpoint.',
+            ];
         }
+        $row = self::connect()->query('PRAGMA wal_checkpoint(TRUNCATE)')->fetch(\PDO::FETCH_NUM);
+        if (!is_array($row)) {
+            return ['ran' => true, 'detail' => 'Write-ahead log checkpointed.'];
+        }
+        [$busy, $pages, $moved] = [(int) ($row[0] ?? 0), (int) ($row[1] ?? 0), (int) ($row[2] ?? 0)];
+        if ($busy === 1) {
+            return [
+                'ran'    => false,
+                'detail' => 'A reader is still holding the log open, so it could not be truncated. '
+                    . 'Nothing is wrong; try again when the site is idle.',
+            ];
+        }
+        return [
+            'ran'    => true,
+            'detail' => $pages === 0
+                ? 'The write-ahead log was already empty.'
+                : "Write-ahead log checkpointed and truncated ({$moved} of {$pages} pages moved).",
+        ];
     }
 
     public static function optimize(): void

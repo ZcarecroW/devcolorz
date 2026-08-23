@@ -125,7 +125,11 @@ function describe(err: unknown): string {
   return 'The API did not answer. The backend may be offline or not installed yet.'
 }
 
+/** Bumped per request, so a stale page cannot land on a newer filter. */
+let listToken = 0
+
 async function load(more = false) {
+  const token = ++listToken
   if (more) loadingMore.value = true
   else loading.value = true
   error.value = null
@@ -138,14 +142,22 @@ async function load(more = false) {
         cursor: more ? cursor.value ?? undefined : undefined,
       },
     })
+    if (token !== listToken) return
     items.value = more ? [...items.value, ...response.items] : response.items
     cursor.value = response.nextCursor
   } catch (err) {
+    if (token !== listToken) return
     error.value = describe(err)
     if (!more) items.value = []
   } finally {
-    loading.value = false
-    loadingMore.value = false
+    // Only the flag this call set. Clearing both meant a finishing "load more"
+    // re-enabled a search that was still in flight, and a finishing search
+    // re-enabled the Load more button mid-request — which appended the same
+    // page twice.
+    if (token === listToken) {
+      if (more) loadingMore.value = false
+      else loading.value = false
+    }
   }
 }
 
@@ -164,7 +176,12 @@ async function patchUser(user: AdminUser, changes: Partial<Record<string, unknow
     items.value = items.value.map((row) => (row.id === user.id ? { ...row, ...updated } : row))
     toast.success(note)
   } catch (err) {
+    // The select snaps back on its own, which on a long list looks like the
+    // click missed. The server's reason — "that is the only administrator" —
+    // is the useful part, so it goes where the change was made as well as in
+    // the banner at the top.
     error.value = describe(err)
+    toast.error('That change was refused', { description: error.value })
   } finally {
     busyId.value = null
   }

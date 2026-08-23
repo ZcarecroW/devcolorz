@@ -64,9 +64,17 @@ function display(value: number): string {
   return `${scaled.toFixed(props.channel.precision)}${props.channel.unit}`
 }
 
-function fromDisplay(raw: string): number {
+/**
+ * Read a typed channel value, or `null` when there is nothing to read.
+ *
+ * It used to answer `range.min` for unreadable input, which is a real value and
+ * indistinguishable from one the user meant: clearing the "to" box snapped the
+ * range shut against its own start, and clearing a locked value jumped the
+ * channel to the bottom of its scale. An empty box now leaves the value alone.
+ */
+function fromDisplay(raw: string): number | null {
   const parsed = Number.parseFloat(raw.replace(/[^\d.-]/g, ''))
-  if (!Number.isFinite(parsed)) return props.constraint.range.min
+  if (!Number.isFinite(parsed)) return null
   const value = parsed / props.channel.displayScale
   return props.channel.cyclic
     ? ((value % props.channel.max) + props.channel.max) % props.channel.max
@@ -83,6 +91,24 @@ const width = computed(() => {
 
 function patch(changes: Partial<ChannelConstraint>) {
   emit('update', { ...props.constraint, ...changes })
+}
+
+/**
+ * Commit a typed channel bound, or put the box back the way it was.
+ *
+ * A rejected value has to be written back by hand: the bound value never
+ * changed, so Vue has no reason to re-render, and the box would sit there
+ * holding text the palette is not using.
+ */
+function commitTyped(event: Event, apply: (value: number) => Partial<ChannelConstraint>, current: number) {
+  const input = event.target as HTMLInputElement
+  const value = fromDisplay(input.value)
+  if (value === null) {
+    input.value = display(current)
+    return
+  }
+  patch(apply(value))
+  emit('commit')
 }
 
 function toggleLock() {
@@ -160,10 +186,7 @@ function toggleLock() {
           class="w-20 rounded-md border bg-background px-1.5 py-1 text-right font-mono text-xs tabular-nums"
           :value="display(constraint.value)"
           :aria-label="`${channel.name} value`"
-          @change="
-            patch({ value: fromDisplay(($event.target as HTMLInputElement).value) });
-            emit('commit')
-          "
+          @change="commitTyped($event, (value) => ({ value }), constraint.value)"
         />
       </div>
     </template>
@@ -189,8 +212,7 @@ function toggleLock() {
           :value="display(constraint.range.min)"
           :aria-label="`${channel.name} from`"
           @change="
-            patch({ range: { ...constraint.range, min: fromDisplay(($event.target as HTMLInputElement).value) } });
-            emit('commit')
+            commitTyped($event, (min) => ({ range: { ...constraint.range, min } }), constraint.range.min)
           "
         />
         <span class="shrink-0 text-xs text-muted-foreground">to</span>
@@ -199,8 +221,7 @@ function toggleLock() {
           :value="display(constraint.range.max)"
           :aria-label="`${channel.name} to`"
           @change="
-            patch({ range: { ...constraint.range, max: fromDisplay(($event.target as HTMLInputElement).value) } });
-            emit('commit')
+            commitTyped($event, (max) => ({ range: { ...constraint.range, max } }), constraint.range.max)
           "
         />
 

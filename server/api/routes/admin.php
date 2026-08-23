@@ -117,7 +117,10 @@ function registerAdminRoutes(Router $router): void
         }
         unset($body['auth.inviteToken'], $body['cron.token'], $body['cron.url']);
 
-        Settings::setMany($body);
+        $rejected = Settings::setMany($body);
+        if ($rejected !== []) {
+            Http::validationFailed($rejected);
+        }
         Audit::log('admin.settings', '', ['keys' => array_keys($body)]);
         Http::json($settingsPayload());
     });
@@ -262,8 +265,24 @@ function registerAdminRoutes(Router $router): void
         if ((string) $target['role'] === 'admin' && Auth::countAdmins() <= 1) {
             Http::forbidden('That is the only administrator.');
         }
-        Db::run('DELETE FROM users WHERE id = ?', [$id]);
-        Audit::log('admin.user.delete', (string) $target['uuid']);
+        /*
+         * Palettes go with the account.
+         *
+         * `palettes.user_id` is ON DELETE SET NULL, so deleting the row left
+         * every palette behind — orphaned, and the public ones still listed in
+         * Explore under no owner at all. The confirmation dialog says "the
+         * account and every palette it owns are removed from the database", and
+         * for someone asking to be forgotten that is the promise that matters.
+         * Versions and likes cascade from the palettes; projects and sessions
+         * already cascaded from the user.
+         */
+        $removed = Db::transaction(static function () use ($id): int {
+            $count = (int) Db::value('SELECT COUNT(*) FROM palettes WHERE user_id = ?', [$id]);
+            Db::run('DELETE FROM palettes WHERE user_id = ?', [$id]);
+            Db::run('DELETE FROM users WHERE id = ?', [$id]);
+            return $count;
+        });
+        Audit::log('admin.user.delete', (string) $target['uuid'] . ' (+' . $removed . ' palettes)');
         Http::noContent();
     });
 
@@ -459,8 +478,11 @@ function registerAdminRoutes(Router $router): void
 
         $result = match ($action) {
             'checkpoint' => (static function (): array {
-                Db::checkpoint();
-                return ['ok' => true, 'detail' => 'Write-ahead log checkpointed and truncated.'];
+                // Report what happened rather than what was asked for: on a
+                // build without WAL, or with a reader holding the log open, the
+                // checkpoint is a no-op and saying "truncated" was untrue.
+                $result = Db::checkpoint();
+                return ['ok' => $result['ran'], 'detail' => $result['detail']];
             })(),
             'optimize' => (static function (): array {
                 Db::optimize();

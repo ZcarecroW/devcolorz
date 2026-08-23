@@ -169,22 +169,89 @@ final class Settings
         self::$cache = null;
     }
 
-    /** @param array<string, mixed> $values */
-    public static function setMany(array $values): void
+    /**
+     * Numeric settings where zero is a real answer rather than a mistake.
+     *
+     * Everywhere else zero is the value an emptied input sends, and storing it
+     * did real damage: `content.maxColors` at 0 refuses every palette on the
+     * instance, and a rate-limit capacity of 0 is not "no limit" but "nothing
+     * gets through".
+     *
+     * @var list<string>
+     */
+    private const ZERO_MEANS_UNLIMITED = ['content.maxPalettesPerUser'];
+
+    /**
+     * Write settings, refusing values that do not fit the key.
+     *
+     * The admin console declares a type and a range for every field; the
+     * server enforced neither, so an emptied number box arrived as 0 and was
+     * stored as though it had been chosen. Values are coerced to the type of
+     * the key's own default and rejected if they cannot be — and the caller is
+     * told which, rather than the write half-succeeding in silence.
+     *
+     * @param  array<string, mixed> $values
+     * @return array<string, string> Rejected keys, mapped to the reason.
+     */
+    public static function setMany(array $values): array
     {
         $known = self::defaults();
-        Db::transaction(static function () use ($values, $known): void {
-            foreach ($values as $key => $value) {
-                // Only keys the application knows about: an open-ended settings
-                // table is a place for junk to accumulate and for a typo to
-                // silently do nothing.
-                if (!array_key_exists($key, $known)) {
+        $rejected = [];
+        $accepted = [];
+
+        foreach ($values as $key => $value) {
+            // Only keys the application knows about: an open-ended settings
+            // table is a place for junk to accumulate and for a typo to
+            // silently do nothing.
+            if (!array_key_exists($key, $known)) {
+                continue;
+            }
+            $default = $known[$key];
+
+            if (is_int($default)) {
+                if (is_bool($value) || !is_numeric($value)) {
+                    $rejected[$key] = 'Must be a number.';
                     continue;
                 }
-                self::set($key, $value);
+                $number = (int) $value;
+                $floor = in_array($key, self::ZERO_MEANS_UNLIMITED, true) ? 0 : 1;
+                if ($number < $floor) {
+                    $rejected[$key] = $floor === 0
+                        ? 'Must be zero or more.'
+                        : 'Must be at least 1. Leave the default if you do not want a limit here.';
+                    continue;
+                }
+                $accepted[$key] = $number;
+                continue;
             }
-        });
+            if (is_bool($default)) {
+                $accepted[$key] = (bool) $value;
+                continue;
+            }
+            if (is_string($default)) {
+                if (!is_string($value) && !is_numeric($value)) {
+                    $rejected[$key] = 'Must be text.';
+                    continue;
+                }
+                $accepted[$key] = (string) $value;
+                continue;
+            }
+            if (is_array($default) && !is_array($value)) {
+                $rejected[$key] = 'Must be an object.';
+                continue;
+            }
+            $accepted[$key] = $value;
+        }
+
+        if ($accepted !== []) {
+            Db::transaction(static function () use ($accepted): void {
+                foreach ($accepted as $key => $value) {
+                    self::set($key, $value);
+                }
+            });
+        }
         self::$cache = null;
+        return $rejected;
     }
 
     public static function reset(): void
