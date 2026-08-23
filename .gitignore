@@ -41,6 +41,8 @@ docs/research/raw/
 server/storage/
 server/config.php
 scratch/
+# an extracted release ZIP, for verifying one before publishing it
+releasetest/
 
 # early research artifacts, kept locally only
 docs/research/
