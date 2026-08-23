@@ -28,6 +28,9 @@ function registerAuthRoutes(Router $router): void
         $email = $v->email();
         $password = $v->password();
         $displayName = $v->string('displayName', 'Display name', 1, 60);
+        if ($displayName !== '' && Auth::displayNameTaken($displayName)) {
+            $v->add('displayName', 'That name is already taken. Pick another one.');
+        }
 
         // The invitation code is the whole access-control model here: anyone
         // may hold the link, but only someone the administrator told can use it.
@@ -63,19 +66,24 @@ function registerAuthRoutes(Router $router): void
 
         $verificationRequired = Settings::bool('auth.requireEmailVerification', true);
 
-        Db::transaction(static function () use ($email, $password, $displayName, $verificationRequired): void {
-            $created = Auth::createUser(
-                $email,
-                $password,
-                $displayName,
-                'user',
-                $verificationRequired ? 'pending' : 'active',
-            );
-            if ($verificationRequired) {
-                Mail::sendVerification($created['id'], $email, $displayName);
-            } else {
-                Db::run('UPDATE users SET email_verified_at = ? WHERE id = ?', [time(), $created['id']]);
-            }
+        // The name was checked above, but two registrations can pass that
+        // check at the same moment; the unique index is what actually decides,
+        // and this reports its verdict as a field error rather than a 500.
+        Auth::guardingDisplayName(static function () use ($email, $password, $displayName, $verificationRequired): void {
+            Db::transaction(static function () use ($email, $password, $displayName, $verificationRequired): void {
+                $created = Auth::createUser(
+                    $email,
+                    $password,
+                    $displayName,
+                    'user',
+                    $verificationRequired ? 'pending' : 'active',
+                );
+                if ($verificationRequired) {
+                    Mail::sendVerification($created['id'], $email, $displayName);
+                } else {
+                    Db::run('UPDATE users SET email_verified_at = ? WHERE id = ?', [time(), $created['id']]);
+                }
+            });
         });
 
         Audit::log('auth.register', $email);
@@ -253,8 +261,15 @@ function registerAuthRoutes(Router $router): void
 
         if (array_key_exists('displayName', $body)) {
             $name = $v->string('displayName', 'Display name', 1, 60);
+            // Excluding this account, so re-saving an unchanged profile is not
+            // refused on the strength of the name it already holds.
+            if ($name !== '' && Auth::displayNameTaken($name, (int) $user['id'])) {
+                $v->add('displayName', 'That name is already taken. Pick another one.');
+            }
             $fields[] = 'display_name = ?';
-            $params[] = $name;
+            $params[] = trim($name);
+            $fields[] = 'display_name_lower = ?';
+            $params[] = Auth::displayNameKey($name);
         }
         if (array_key_exists('prefs', $body)) {
             $prefs = $v->json('prefs', 'Preferences', 16384);
@@ -267,7 +282,9 @@ function registerAuthRoutes(Router $router): void
             $fields[] = 'updated_at = ?';
             $params[] = time();
             $params[] = (int) $user['id'];
-            Db::run('UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ?', $params);
+            Auth::guardingDisplayName(static function () use ($fields, $params): void {
+                Db::run('UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ?', $params);
+            });
         }
 
         $fresh = Db::one('SELECT * FROM users WHERE id = ?', [(int) $user['id']]);

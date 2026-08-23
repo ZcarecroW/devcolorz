@@ -193,6 +193,24 @@ check "forgot-password never reveals the account" 204 "$status"
 status=$(req POST /api/auth/register '{"email":"new@example.com","password":"correct horse battery staple","displayName":"New","inviteToken":"NOPE"}')
 check "registration without a valid invite is refused" 422 "$status"
 
+# Display names are unique, case- and whitespace-insensitively.
+status=$(req PATCH /api/auth/me '{"displayName":"Admin"}')
+check "keeping your own name is not a collision" 200 "$status"
+
+status=$(req PATCH /api/auth/me '{"displayName":"  ADMIN  "}')
+check "the same name padded and upper-cased is still yours" 200 "$status"
+
+# Registration needs the invitation off, which is also worth proving works.
+req PATCH /api/admin/settings '{"auth.inviteRequired":false}' >/dev/null
+
+status=$(req POST /api/auth/register '{"email":"second@example.com","password":"correct horse battery staple","displayName":"Second"}')
+check "a free display name registers" 204 "$status"
+
+status=$(req POST /api/auth/register '{"email":"third@example.com","password":"correct horse battery staple","displayName":"  sEcOnD  "}')
+check "a display name in use is refused, whatever its case" 422 "$status"
+
+req PATCH /api/admin/settings '{"auth.inviteRequired":true}' >/dev/null
+
 say ""
 status=$(req DELETE "/api/palettes/$UUID")
 check "DELETE /api/palettes/{uuid}" 204 "$status"

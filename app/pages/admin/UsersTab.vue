@@ -126,7 +126,10 @@ function askDelete(user: AdminUser) {
 }
 
 function describe(err: unknown): string {
-  if (err instanceof ApiError) return err.message
+  // `reason` over `message`: a 422 puts "Some fields need attention." in the
+  // detail and the sentence that explains it — "That name is already taken." —
+  // in the field errors, and the second is the one worth showing.
+  if (err instanceof ApiError) return err.reason
   return 'The API did not answer. The backend may be offline or not installed yet.'
 }
 

@@ -14,7 +14,16 @@ namespace DevColorz;
  */
 final class Schema
 {
-    /** @return list<array{id: string, sql: list<string>}> */
+    /**
+     * A step is a SQL string, or a callable when the work needs real logic.
+     *
+     * Everything here was one statement after another until display names had
+     * to become unique: existing rows have to be read, compared with the same
+     * case folding the application uses, and given new names before the index
+     * that forbids duplicates can be created at all.
+     *
+     * @return list<array{id: string, sql: list<string|callable(): void>}>
+     */
     private static function migrations(): array
     {
         $strict = Db::supportsStrict() ? ' STRICT' : '';
@@ -196,7 +205,70 @@ final class Schema
                     'CREATE INDEX IF NOT EXISTS idx_cron_job ON cron_runs(job, started_at DESC)',
                 ],
             ],
+            [
+                'id' => '004_unique_display_names',
+                'sql' => [
+                    // Mirrors `email_lower`: SQLite's own lower() folds ASCII
+                    // only, so the comparison key is written by PHP, which
+                    // folds the way the rest of the application does.
+                    "ALTER TABLE users ADD COLUMN display_name_lower TEXT NOT NULL DEFAULT ''",
+                    static fn (): int => self::backfillDisplayNameKeys(),
+                    /*
+                     * Partial, so the blank name several legacy rows may share
+                     * is not treated as a collision. Every path that writes a
+                     * name requires at least one character, so a blank one can
+                     * only be historical.
+                     */
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_display_name
+                        ON users(display_name_lower) WHERE display_name_lower != ''",
+                ],
+            ],
         ];
+    }
+
+    /**
+     * Give every existing account a comparison key, and a name it can keep.
+     *
+     * Names were free to collide until now, so an installation upgrading into
+     * the unique index may well hold duplicates — and the index cannot be
+     * created while it does. Rather than fail the upgrade, the earliest
+     * account of each set keeps the name it has and the others are numbered
+     * after it: two accounts called Alex become "Alex" and "Alex 2". Numbering
+     * skips anything already taken, so it cannot manufacture a fresh clash.
+     *
+     * @return int How many accounts had to be renamed.
+     */
+    private static function backfillDisplayNameKeys(): int
+    {
+        $rows = Db::all('SELECT id, display_name FROM users ORDER BY id ASC');
+        $taken = [];
+        $renamed = 0;
+
+        foreach ($rows as $row) {
+            $name = trim((string) $row['display_name']);
+            $key = mb_strtolower($name, 'UTF-8');
+
+            if ($key !== '' && isset($taken[$key])) {
+                $suffix = 2;
+                do {
+                    $candidate = $name . ' ' . $suffix;
+                    $candidateKey = mb_strtolower($candidate, 'UTF-8');
+                    $suffix++;
+                } while (isset($taken[$candidateKey]));
+                $name = $candidate;
+                $key = $candidateKey;
+                $renamed++;
+            }
+            if ($key !== '') {
+                $taken[$key] = true;
+            }
+            Db::run('UPDATE users SET display_name = ?, display_name_lower = ? WHERE id = ?', [
+                $name,
+                $key,
+                (int) $row['id'],
+            ]);
+        }
+        return $renamed;
     }
 
     /**
@@ -258,8 +330,12 @@ final class Schema
             // Each migration is one transaction: a half-applied schema is far
             // worse than a failed deploy.
             Db::transaction(static function () use ($migration): void {
-                foreach ($migration['sql'] as $sql) {
-                    Db::connect()->exec($sql);
+                foreach ($migration['sql'] as $step) {
+                    if (is_callable($step)) {
+                        $step();
+                        continue;
+                    }
+                    Db::connect()->exec($step);
                 }
                 Db::run('INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)', [
                     $migration['id'],

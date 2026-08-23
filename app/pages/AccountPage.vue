@@ -142,7 +142,12 @@ async function saveProfile() {
     if (error instanceof ApiError && error.isValidation && error.problem.errors) {
       profileFieldErrors.value = error.problem.errors
     }
-    profileError.value = describeFailure(error, 'The profile could not be saved.')
+    // Only when no field carries the message already: repeating "Some fields
+    // need attention." under the sentence that just said which field, and what
+    // was wrong with it, is noise standing where an explanation should be.
+    if (!Object.keys(profileFieldErrors.value).length) {
+      profileError.value = describeFailure(error, 'The profile could not be saved.')
+    }
   } finally {
     savingProfile.value = false
   }
@@ -181,7 +186,12 @@ async function changeEmail() {
     if (error instanceof ApiError && error.isValidation && error.problem.errors) {
       emailFieldErrors.value = error.problem.errors
     }
-    emailError.value = describeFailure(error, 'The address could not be changed.')
+    // Only when no field carries the message already: repeating "Some fields
+    // need attention." under the sentence that just said which field, and what
+    // was wrong with it, is noise standing where an explanation should be.
+    if (!Object.keys(emailFieldErrors.value).length) {
+      emailError.value = describeFailure(error, 'The address could not be changed.')
+    }
   } finally {
     savingEmail.value = false
   }
@@ -237,7 +247,12 @@ async function changePassword() {
     if (error instanceof ApiError && error.isValidation && error.problem.errors) {
       passwordFieldErrors.value = error.problem.errors
     }
-    passwordError.value = describeFailure(error, 'The password could not be changed.')
+    // Only when no field carries the message already: repeating "Some fields
+    // need attention." under the sentence that just said which field, and what
+    // was wrong with it, is noise standing where an explanation should be.
+    if (!Object.keys(passwordFieldErrors.value).length) {
+      passwordError.value = describeFailure(error, 'The password could not be changed.')
+    }
   } finally {
     savingPassword.value = false
   }

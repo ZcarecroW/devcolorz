@@ -104,6 +104,66 @@ final class Auth
     }
 
     /**
+     * The comparison key for a display name.
+     *
+     * Trimmed and case-folded, so "Alex", "alex" and " Alex " are one name.
+     * `mb_strtolower` rather than SQLite's `lower()`, which folds ASCII only —
+     * the same choice, and the same reason, as `email_lower`.
+     */
+    public static function displayNameKey(string $displayName): string
+    {
+        return mb_strtolower(trim($displayName), 'UTF-8');
+    }
+
+    /**
+     * Whether another account already answers to this name.
+     *
+     * `$exceptUserId` is the account doing the asking, so someone re-saving
+     * their profile is not told their own name is taken.
+     */
+    public static function displayNameTaken(string $displayName, ?int $exceptUserId = null): bool
+    {
+        $key = self::displayNameKey($displayName);
+        if ($key === '') {
+            return false;
+        }
+        $sql = 'SELECT 1 FROM users WHERE display_name_lower = ?';
+        $params = [$key];
+        if ($exceptUserId !== null) {
+            $sql .= ' AND id != ?';
+            $params[] = $exceptUserId;
+        }
+        // fetchColumn() answers false when there is no row at all.
+        return Db::value($sql . ' LIMIT 1', $params) !== false;
+    }
+
+    /**
+     * Run a write that could collide on the display-name index.
+     *
+     * The check above every such write is not a lock: two requests can both
+     * find a name free and both go on to take it. The unique index is the
+     * actual guarantee, and this turns the error it raises into the answer the
+     * check would have given, rather than a 500 on a race nobody can see.
+     *
+     * @template T
+     * @param  callable(): T $write
+     * @return T
+     */
+    public static function guardingDisplayName(callable $write): mixed
+    {
+        try {
+            return $write();
+        } catch (\PDOException $error) {
+            $message = $error->getMessage();
+            if (str_contains($message, 'idx_users_display_name')
+                || str_contains($message, 'users.display_name_lower')) {
+                Http::validationFailed(['displayName' => 'That name is already taken. Pick another one.']);
+            }
+            throw $error;
+        }
+    }
+
+    /**
      * Create a user.
      *
      * @return array{id: int, uuid: string}
@@ -118,14 +178,15 @@ final class Auth
         $uuid = Security::uuid();
         $now = time();
         Db::run(
-            'INSERT INTO users (uuid, email, email_lower, password_hash, display_name, role, status, prefs_json, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO users (uuid, email, email_lower, password_hash, display_name, display_name_lower, role, status, prefs_json, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $uuid,
                 $email,
                 mb_strtolower($email, 'UTF-8'),
                 Security::hashPassword($password),
-                $displayName,
+                trim($displayName),
+                self::displayNameKey($displayName),
                 $role,
                 $status,
                 '{}',

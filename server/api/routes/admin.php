@@ -208,8 +208,14 @@ function registerAdminRoutes(Router $router): void
             $params[] = $status;
         }
         if (array_key_exists('displayName', $body)) {
+            $name = $v->string('displayName', 'Display name', 1, 60);
+            if ($name !== '' && Auth::displayNameTaken($name, $id)) {
+                $v->add('displayName', 'That name is already taken. Pick another one.');
+            }
             $fields[] = 'display_name = ?';
-            $params[] = $v->string('displayName', 'Display name', 1, 60);
+            $params[] = trim($name);
+            $fields[] = 'display_name_lower = ?';
+            $params[] = Auth::displayNameKey($name);
         }
         if (($body['emailVerified'] ?? null) === true) {
             $fields[] = 'email_verified_at = ?';
@@ -221,7 +227,9 @@ function registerAdminRoutes(Router $router): void
             $fields[] = 'updated_at = ?';
             $params[] = time();
             $params[] = $id;
-            Db::run('UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ?', $params);
+            Auth::guardingDisplayName(static function () use ($fields, $params): void {
+                Db::run('UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ?', $params);
+            });
         }
         // A change of role or status has to take effect now, not when the
         // target's session happens to expire.
