@@ -44,3 +44,6 @@ scratch/
 
 # early research artifacts, kept locally only
 docs/research/
+
+# release archives are attached to a GitHub release, not committed
+*.zip

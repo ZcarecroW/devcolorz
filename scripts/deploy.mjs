@@ -8,7 +8,7 @@
  *   DEVCOLORZ_FTP_ROOT      (default "/")
  *   DEVCOLORZ_FTP_SECURE    ("true" | "false" | "implicit", default true)
  *
- * Run: node scripts/deploy.mjs [--dry] [--only=api] [--keep-storage]
+ * Run: node scripts/deploy.mjs [--dry] [--only=api]
  *
  * The remote `storage/` directory and `config.php` are never touched: they hold
  * the live database and the installation secrets. Deleting them would wipe
@@ -98,12 +98,24 @@ async function main() {
   client.ftp.verbose = false
 
   try {
+    /*
+     * The certificate is verified.
+     *
+     * `rejectUnauthorized: false` used to sit here, which meant the FTPS
+     * session that carries the account password in plaintext AUTH TLS would
+     * accept any certificate at all — the one thing TLS is for. Hosts with a
+     * self-signed or mismatched certificate can opt out per deployment with
+     * `"insecureTls": true` in deploy.config.json, and it says so out loud.
+     */
+    if (config.insecureTls) {
+      console.warn('WARNING: TLS certificate verification is disabled for this connection.')
+    }
     await client.access({
       host: config.host,
       user: config.user,
       password: config.password,
       secure: config.secure,
-      secureOptions: { rejectUnauthorized: false },
+      secureOptions: { rejectUnauthorized: config.insecureTls !== true },
     })
 
     // Directories first, so an upload never races its own parent.

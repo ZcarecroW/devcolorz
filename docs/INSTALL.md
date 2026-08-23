@@ -52,8 +52,22 @@ document root of a domain or subdomain. If your host calls it `public_html`,
 `index.html` must end up directly in the document root. If you visit your
 domain and see a directory listing or a 404, the files are one level too deep.
 
-> **A subfolder works too**, for example `example.com/colors/`. The app uses
-> hash-based routing precisely so it does not care where it lives.
+> **A subfolder needs four edits.** Hash-based routing means the *router* does
+> not care where the app lives, but four paths around it are absolute and do.
+> To install at `example.com/colors/`:
+>
+> 1. `vite.config.ts` — set `base: '/colors/'` and rebuild, or the page asks
+>    for `/assets/…` and gets your site's 404.
+> 2. `api/.htaccess` — `FallbackResource /colors/api/index.php` and
+>    `RewriteBase /colors/api/`.
+> 3. `.htaccess` — the SPA fallback and the `RedirectMatch` that refuses
+>    `storage/` both need the prefix. Getting the second one wrong leaves the
+>    database downloadable, so check it by asking for
+>    `example.com/colors/storage/` and confirming you do not get a listing.
+> 4. `app/lib/api.ts` — the API base is `/api`; make it `/colors/api`.
+>
+> The document root is the supported layout. A subfolder is possible, not
+> tested on every release, and entirely your own to maintain.
 
 ### 3. Check permissions
 
