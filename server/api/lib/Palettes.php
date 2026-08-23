@@ -239,7 +239,7 @@ final class Palettes
         $where = ['user_id = ?', 'deleted_at IS NULL'];
         $params = [$userId];
         if ($query !== null && $query !== '') {
-            $where[] = '(title LIKE ? OR hex_index LIKE ?)';
+            $where[] = "(title LIKE ? ESCAPE '\\' OR hex_index LIKE ? ESCAPE '\\')";
             $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], strtolower(ltrim($query, '#'))) . '%';
             $params[] = $like;
             $params[] = $like;
@@ -282,7 +282,7 @@ final class Palettes
         $where = ["p.visibility = 'public'", 'p.deleted_at IS NULL'];
         $params = [];
         if ($query !== null && $query !== '') {
-            $where[] = '(p.title LIKE ? OR p.hex_index LIKE ?)';
+            $where[] = "(p.title LIKE ? ESCAPE '\\' OR p.hex_index LIKE ? ESCAPE '\\')";
             $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], strtolower(ltrim($query, '#'))) . '%';
             $params[] = $like;
             $params[] = $like;
@@ -368,12 +368,25 @@ final class Palettes
      */
     public static function recomputeTrending(): int
     {
+        /*
+         * Plain multiplication, not POWER().
+         *
+         * POWER() lives in SQLITE_ENABLE_MATH_FUNCTIONS, which is optional and
+         * absent from plenty of builds the installer happily accepts — and so
+         * are EXP, LN and SQRT, so there is no fallback inside that module
+         * either. On those hosts this job threw every five minutes, cron
+         * recorded the failure where nobody looks, and every trend_score
+         * stayed at zero forever while the Explore feed's default sort quietly
+         * did nothing. Squaring the age term instead of raising it to 1.5
+         * steepens the decay slightly; Hacker News itself uses 1.8.
+         */
         $now = time();
         return Db::run(
             'UPDATE palettes
-             SET trend_score = (likes + views / 20.0) / POWER((? - created_at) / 3600.0 + 2.0, 1.5)
+             SET trend_score = (likes + views / 20.0)
+                 / (((? - created_at) / 3600.0 + 2.0) * ((? - created_at) / 3600.0 + 2.0))
              WHERE deleted_at IS NULL AND visibility = ?',
-            [$now, 'public'],
+            [$now, $now, 'public'],
         )->rowCount();
     }
 

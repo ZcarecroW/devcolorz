@@ -84,13 +84,18 @@ final class Cron
         $sessions = Session::prune();
         $mail = Mail::prune(30);
         $palettes = Palettes::purgeDeleted(30);
+        // The audit log was the one table nothing ever trimmed, and it takes a
+        // row on every sign-in, palette write and admin action — the
+        // highest-volume table in the database, growing without bound.
+        $audit = Audit::prune(180);
         return sprintf(
-            '%d attempts, %d tokens, %d sessions, %d mails, %d palettes removed',
+            '%d attempts, %d tokens, %d sessions, %d mails, %d palettes, %d audit rows removed',
             $attempts,
             $tokens,
             $sessions,
             $mail,
             $palettes,
+            $audit,
         );
     }
 
@@ -104,7 +109,14 @@ final class Cron
     {
         Db::checkpoint();
         Db::optimize();
-        return 'checkpointed and optimized';
+        // The exposure probe lives here, not on the admin's page load: six
+        // serial loopback requests belong on a schedule, not in front of the
+        // first render.
+        $exposure = SelfTest::refreshExposure();
+        $verdict = $exposure['exposed'] === null
+            ? 'exposure inconclusive'
+            : ($exposure['exposed'] ? 'STORAGE IS EXPOSED' : 'storage not exposed');
+        return 'checkpointed and optimized, ' . $verdict;
     }
 
     /**
@@ -113,28 +125,45 @@ final class Cron
      * `VACUUM INTO` rather than a file copy: closing any descriptor for a
      * SQLite file drops every advisory lock the process holds on it, so copying
      * the live database can corrupt it under a concurrent writer.
+     *
+     * The daily files live under their own prefix. Sharing `backup-*` with the
+     * ones the admin console writes by hand meant the seven-file cap counted
+     * both, so the snapshot somebody took before a risky change — the button
+     * for which promises it will be kept — was silently deleted within a week.
+     * Legacy `backup-YYYYMMDD.sqlite` files are still swept up, so an existing
+     * installation does not accumulate them forever; the timestamped manual
+     * ones, `backup-YYYYMMDD-HHMMSS.sqlite`, are left alone.
      */
     private static function backup(): string
     {
         $dir = Paths::backups();
         $today = date('Ymd');
-        $target = $dir . '/backup-' . $today . '.sqlite';
+        $target = $dir . '/daily-' . $today . '.sqlite';
         if (is_file($target)) {
             return 'already backed up today';
         }
 
         Db::backupTo($target);
 
+        $daily = array_merge(
+            glob($dir . '/daily-*.sqlite') ?: [],
+            // Dailies from before the rename. Eight digits and nothing else,
+            // so a manual `backup-20260823-142530.sqlite` does not match.
+            array_filter(
+                glob($dir . '/backup-*.sqlite') ?: [],
+                static fn (string $f): bool => (bool) preg_match('/backup-\d{8}\.sqlite$/', $f),
+            ),
+        );
+        rsort($daily);
+
         $kept = 0;
-        $files = glob($dir . '/backup-*.sqlite') ?: [];
-        rsort($files);
-        foreach ($files as $index => $file) {
+        foreach ($daily as $index => $file) {
             if ($index >= 7) {
                 @unlink($file);
             } else {
                 $kept++;
             }
         }
-        return 'backup written, ' . $kept . ' kept';
+        return 'backup written, ' . $kept . ' daily kept';
     }
 }

@@ -85,6 +85,14 @@ final class Settings
 
             // Cron
             'cron.enabled' => true,
+
+            /*
+             * Result of the last exposure probe, written by SelfTest.
+             * Not a preference — it lives here because it is the one store the
+             * application already has, and it must outlive a request: probing
+             * on demand meant six loopback HTTP calls on every admin page load.
+             */
+            'selftest.exposure' => ['exposed' => null, 'checkedAt' => 0],
         ];
     }
 

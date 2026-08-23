@@ -541,7 +541,7 @@ const GROUPS: Group[] = [
         kind: 'select',
         options: DARK_OPTIONS,
         hintTitle: 'Deriving a dark palette',
-        hint: 'The starting algorithm for turning a light palette into a dark one. The OKLCH curve is the safe general answer; the others exist because specific design systems expect specific behaviour and will look wrong without it.',
+        hint: 'The starting algorithm for turning a light palette into a dark one. The OKLCH curve is the safe general answer; the others exist because specific design systems expect specific behavior and will look wrong without it.',
       },
       {
         key: 'engine.defaultSwatchCount',

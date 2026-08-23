@@ -176,7 +176,10 @@ final class SelfTest
      */
     public static function exposure(): array
     {
-        $base = Http::selfOrigin();
+        // `baseUrl()` rather than the request host: this also runs from cron,
+        // and a CLI invocation has no HTTP_HOST at all — it would have probed
+        // http://localhost and recorded a meaningless verdict.
+        $base = Http::baseUrl();
         $dbFile = Config::string('db_file');
 
         $targets = [
@@ -213,21 +216,68 @@ final class SelfTest
         return $results;
     }
 
-    /** True when anything sensitive is reachable — surfaced as an admin alarm. */
-    public static function storageReachable(): bool
+    /**
+     * Whether anything sensitive is reachable — surfaced as an admin alarm.
+     *
+     * Answers from the stored result of the last real probe. The probe makes
+     * six serial loopback HTTP requests, and this is called from `/meta`, the
+     * first thing the SPA asks for: every admin page load paid for six
+     * round-trips before anything rendered, and on a host whose loopback is
+     * firewalled it paid the full connect timeout on each of them — six times
+     * three seconds, on every reload.
+     *
+     * Tri-state on purpose. A failed probe is not a passed one, and reporting
+     * "not exposed" for an installation that was never actually checked is the
+     * more dangerous of the two wrong answers.
+     *
+     * @return array{exposed: bool|null, checkedAt: int}
+     */
+    public static function exposureStatus(): array
     {
-        if (isset(self::$cache['exposed'])) {
-            return self::$cache['exposed'];
+        $stored = Settings::get('selftest.exposure');
+        if (is_array($stored) && array_key_exists('exposed', $stored)) {
+            return [
+                'exposed'   => is_bool($stored['exposed']) ? $stored['exposed'] : null,
+                'checkedAt' => (int) ($stored['checkedAt'] ?? 0),
+            ];
         }
+        return ['exposed' => null, 'checkedAt' => 0];
+    }
+
+    /**
+     * Store the verdict from a set of exposure checks.
+     *
+     * Takes the checks rather than running them, so a caller that already has
+     * them does not pay for a second round of loopback requests.
+     *
+     * @param list<array{id: string, label: string, ok: bool, required: bool, detail: string}>|null $checks
+     * @return array{exposed: bool|null, checkedAt: int}
+     */
+    public static function refreshExposure(?array $checks = null): array
+    {
         $exposed = false;
-        foreach (self::exposure() as $check) {
+        $conclusive = true;
+        foreach ($checks ?? self::exposure() as $check) {
+            if (str_contains($check['detail'], 'Could not complete a loopback request')) {
+                $conclusive = false;
+                continue;
+            }
             if (!$check['ok']) {
                 $exposed = true;
-                break;
             }
         }
-        self::$cache = ['exposed' => $exposed];
-        return $exposed;
+        $status = [
+            'exposed'   => $conclusive ? $exposed : ($exposed ? true : null),
+            'checkedAt' => time(),
+        ];
+        Settings::set('selftest.exposure', $status);
+        return $status;
+    }
+
+    /** True when anything sensitive is known to be reachable. */
+    public static function storageReachable(): bool
+    {
+        return self::exposureStatus()['exposed'] === true;
     }
 
     /** HTTP status of a URL, or 0 if the request could not be made. */

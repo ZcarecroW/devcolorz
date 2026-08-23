@@ -48,6 +48,15 @@ function registerAuthRoutes(Router $router): void
             // Same response as a successful registration. If the address really
             // is registered, the owner gets an email telling them so — which is
             // both more useful and less leaky than a form error.
+            //
+            // Both halves of that had to be made true. The mail was described
+            // here and never sent, and this branch returned in a couple of
+            // milliseconds while the real one spent an Argon2id hash and two
+            // inserts — a difference an attacker can measure over a handful of
+            // samples, which turns "we never say whether an address exists"
+            // into exactly that.
+            Auth::fakePasswordCheck();
+            Mail::sendRegistrationAttempt($email, (string) $existing['display_name']);
             Audit::log('auth.register.duplicate', $email);
             Http::noContent();
         }

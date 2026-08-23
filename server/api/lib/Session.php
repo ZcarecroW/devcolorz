@@ -60,7 +60,7 @@ final class Session
     {
         // `__Host-` requires Secure, so on a plain-HTTP development host the
         // browser would silently drop it; fall back to a plain name there.
-        $secure = ($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? '') !== 'off';
+        $secure = Http::isSecure();
         $name = $secure ? self::COOKIE : 'dcz';
         setcookie($name, $raw, [
             'expires'  => $expires,
@@ -73,7 +73,7 @@ final class Session
 
     private static function clearCookie(): void
     {
-        $secure = ($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? '') !== 'off';
+        $secure = Http::isSecure();
         setcookie($secure ? self::COOKIE : 'dcz', '', [
             'expires'  => time() - 3600,
             'path'     => '/',
