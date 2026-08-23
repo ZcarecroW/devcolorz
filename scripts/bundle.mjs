@@ -134,10 +134,10 @@ for (const name of ['LICENSE', 'THIRD-PARTY.md']) {
  * it is the number a release is actually identified by. Reading it here
  * means the ZIP's README cannot disagree with the app inside it.
  */
-const versionSource = readFileSync(join(server, 'api', 'index.php'), 'utf8')
+const versionSource = readFileSync(join(server, 'api', 'lib', 'Version.php'), 'utf8')
 const versionMatch = /APP_VERSION\s*=\s*'([^']+)'/.exec(versionSource)
 if (!versionMatch) {
-  console.error('could not read APP_VERSION from server/api/index.php')
+  console.error('could not read APP_VERSION from server/api/lib/Version.php')
   process.exit(1)
 }
 const version = versionMatch[1]

@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.4.0 — 2026-08-23
+
+**A GitHub mark in the header**, left of the appearance toggle, linking to the
+project this application is built from.
+
+**Updates.** The System tab shows the installed version, the newest release,
+when it last looked, and the notes for anything newer — with one button to
+check, one to install, and one to undo the last install. The Settings tab
+decides whether the daily check runs, at which hour, and whether what it finds
+is installed without being asked. Checking and automatic installation are both
+on by default, at 05:00 server time.
+
+Installing an update downloads an archive and unpacks it over the running code,
+so the care is in what is allowed and what is checked first. The repository is
+compiled into the application rather than being a setting. The download address
+is rebuilt from that constant and the release tag, never taken from the API
+response. Every path inside the archive must stay within the staging directory,
+the tree has to look like DevColorz, and the version inside has to match the
+release it claims to be — a mislabelled archive cannot quietly downgrade the
+site. `config.php` and `storage/` are never written, and every replaced file is
+kept so one button puts the previous version back.
+
+What this cannot check is *who* published a release: GitHub does not sign
+release assets, so anyone holding the project account could publish something
+an installation with automatic updates on would install unattended. The switch
+says so where it sits. Turn it off to read the notes first.
+
+A host that cannot do this says so on the page rather than failing halfway —
+no outbound HTTP, no zip extension, or an application directory PHP may not
+write to are each reported with what to do instead.
+
+Fixed alongside: `APP_VERSION` lived in the front controller, which the
+scheduler does not load, so a scheduled check would have died on an undefined
+constant while the same code worked from the console. It has its own file now.
+
 ## 1.3.0 — 2026-08-23
 
 **Display names are unique.** Two accounts could both be called Alex. The
