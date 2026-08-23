@@ -179,6 +179,26 @@ check "POST /api/admin/maintenance checkpoint" 200 "$status"
 status=$(req POST /api/admin/cron/run '{"job":"prune"}')
 check "POST /api/admin/cron/run" 200 "$status"
 
+# The update surface. Only the read is exercised: checking would reach out to
+# GitHub, and installing would replace the tree this script is testing.
+status=$(req GET /api/admin/update)
+check "GET /api/admin/update" 200 "$status"
+
+status=$(req PATCH /api/admin/settings '{"updates.checkHour":0}')
+check "midnight is a valid hour to check at" 200 "$status"
+
+status=$(req PATCH /api/admin/settings '{"updates.checkHour":"noon"}')
+check "a non-numeric check hour is refused" 422 "$status"
+
+# The updater writes these; an administrator must not be able to forge them.
+req PATCH /api/admin/settings '{"updates.latest":{"version":"99.0.0"}}' >/dev/null
+status=$(req GET /api/admin/update)
+if grep -q '"99.0.0"' "$BODY_FILE"; then
+  check "a forged release cannot be planted in settings" "not-planted" "planted"
+else
+  check "a forged release cannot be planted in settings" "not-planted" "not-planted"
+fi
+
 say ""
 say "auth edge cases"
 status=$(req POST /api/auth/login '{"email":"admin@example.com","password":"wrong"}')

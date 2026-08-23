@@ -48,6 +48,12 @@ final class Paths
         return self::storage() . '/backups';
     }
 
+    /** Staging and backups for the self-updater. Inside storage, so denied. */
+    public static function updates(): string
+    {
+        return self::storage() . '/updates';
+    }
+
     public static function configFile(): string
     {
         return self::root() . '/config.php';
@@ -61,7 +67,7 @@ final class Paths
     /** Create the runtime directories and their guards. Idempotent. */
     public static function ensure(): void
     {
-        foreach ([self::storage(), self::sessions(), self::locks(), self::backups()] as $dir) {
+        foreach ([self::storage(), self::sessions(), self::locks(), self::backups(), self::updates()] as $dir) {
             if (!is_dir($dir)) {
                 @mkdir($dir, 0770, true);
             }

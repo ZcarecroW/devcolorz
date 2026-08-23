@@ -83,6 +83,19 @@ final class Settings
             'engine.defaultDarkStrategy'   => 'oklch-curve',
             'engine.defaultSwatchCount'    => 5,
 
+            // Updates
+            'updates.checkEnabled' => true,
+            'updates.checkHour'    => 5,
+            'updates.autoInstall'  => true,
+            /*
+             * What the last check found, and how the last install went. State
+             * rather than preference, kept here for the same reason as the
+             * exposure probe: this is the store that outlives a request.
+             */
+            'updates.lastCheckedAt' => 0,
+            'updates.latest'        => [],
+            'updates.lastResult'    => [],
+
             // Cron
             'cron.enabled' => true,
 
@@ -175,11 +188,12 @@ final class Settings
      * Everywhere else zero is the value an emptied input sends, and storing it
      * did real damage: `content.maxColors` at 0 refuses every palette on the
      * instance, and a rate-limit capacity of 0 is not "no limit" but "nothing
-     * gets through".
+     * gets through". Here it means something: no cap on palettes, and midnight
+     * for the hour the update check runs at.
      *
      * @var list<string>
      */
-    private const ZERO_MEANS_UNLIMITED = ['content.maxPalettesPerUser'];
+    private const ZERO_ALLOWED = ['content.maxPalettesPerUser', 'updates.checkHour', 'updates.lastCheckedAt'];
 
     /**
      * Write settings, refusing values that do not fit the key.
@@ -214,7 +228,7 @@ final class Settings
                     continue;
                 }
                 $number = (int) $value;
-                $floor = in_array($key, self::ZERO_MEANS_UNLIMITED, true) ? 0 : 1;
+                $floor = in_array($key, self::ZERO_ALLOWED, true) ? 0 : 1;
                 if ($number < $floor) {
                     $rejected[$key] = $floor === 0
                         ? 'Must be zero or more.'

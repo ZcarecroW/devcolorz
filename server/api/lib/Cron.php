@@ -29,6 +29,9 @@ final class Cron
             'trending' => static fn (): string => self::trending(),
             'maintain' => static fn (): string => self::maintain(),
             'backup'   => static fn (): string => self::backup(),
+            // Cheap on all but one run a day: it returns immediately unless
+            // the configured hour has passed without a check happening yet.
+            'updates'  => static fn (): string => Updater::scheduled(),
             // Last, and only when the answer is stale. The probe makes six
             // loopback requests and on a host whose loopback is firewalled it
             // spends the whole connect timeout on each — put anywhere earlier

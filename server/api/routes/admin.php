@@ -115,7 +115,16 @@ function registerAdminRoutes(Router $router): void
                 unset($body[$key]);
             }
         }
-        unset($body['auth.inviteToken'], $body['cron.token'], $body['cron.url']);
+        // Written by the updater, not by hand: letting these be PATCHed would
+        // let the console claim a release exists that GitHub never published.
+        unset(
+            $body['auth.inviteToken'],
+            $body['cron.token'],
+            $body['cron.url'],
+            $body['updates.latest'],
+            $body['updates.lastResult'],
+            $body['updates.lastCheckedAt'],
+        );
 
         $rejected = Settings::setMany($body);
         if ($rejected !== []) {
@@ -473,6 +482,58 @@ function registerAdminRoutes(Router $router): void
      * administrator asked for it and is waiting for the answer. Everywhere
      * else reads the verdict this call stores.
      */
+    /* ---------------- updates ---------------- */
+
+    /**
+     * Everything the console needs to describe the update situation.
+     *
+     * Deliberately a plain read: it reports what the last check found and does
+     * not go to GitHub itself, so opening the System tab never blocks on a
+     * network call the way `/meta` once did.
+     */
+    $updateStatus = static fn (): array => [
+        'current'       => Updater::currentVersion(),
+        'projectUrl'    => Updater::projectUrl(),
+        'repository'    => Updater::REPO,
+        'lastCheckedAt' => Settings::int('updates.lastCheckedAt', 0),
+        'latest'        => Settings::get('updates.latest') ?: null,
+        'available'     => Updater::available(),
+        'lastResult'    => Settings::get('updates.lastResult') ?: null,
+        'capabilities'  => Updater::capabilities(),
+        'backups'       => Updater::backups(),
+        'settings'      => [
+            'checkEnabled' => Settings::bool('updates.checkEnabled', true),
+            'checkHour'    => Settings::int('updates.checkHour', 5),
+            'autoInstall'  => Settings::bool('updates.autoInstall', true),
+        ],
+    ];
+
+    $router->get('/admin/update', static function () use ($updateStatus): void {
+        Auth::requireAdmin();
+        Http::json($updateStatus());
+    });
+
+    $router->post('/admin/update/check', static function () use ($updateStatus): void {
+        Auth::requireAdmin();
+        $result = Updater::check();
+        Audit::log('update.check', $result['ok'] ? (string) ($result['latest']['version'] ?? '') : 'failed');
+        Http::json(['result' => $result, 'status' => $updateStatus()]);
+    });
+
+    $router->post('/admin/update/install', static function () use ($updateStatus): void {
+        Auth::requireAdmin();
+        $result = Updater::install();
+        // The response is written by the code that is being replaced, so it is
+        // built before anything else touches the filesystem again.
+        Http::json(['result' => $result, 'status' => $updateStatus()]);
+    });
+
+    $router->post('/admin/update/rollback', static function () use ($updateStatus): void {
+        Auth::requireAdmin();
+        $result = Updater::rollback();
+        Http::json(['result' => $result, 'status' => $updateStatus()]);
+    });
+
     $router->get('/admin/selftest', static function (): void {
         Auth::requireAdmin();
         $exposure = SelfTest::exposure();

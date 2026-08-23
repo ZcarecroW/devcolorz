@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import AppearanceToggle from '@/components/shell/AppearanceToggle.vue'
+import GithubLink from '@/components/shell/GithubLink.vue'
 import BrandMark from '@/components/shell/BrandMark.vue'
 import { useSessionStore } from '@/stores/session'
 
@@ -123,6 +124,7 @@ async function signOut() {
 
     <div class="flex-1" />
 
+    <GithubLink />
     <AppearanceToggle />
 
     <template v-if="session.ready">

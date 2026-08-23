@@ -16,6 +16,8 @@ import {
   Copy,
   Database,
   HardDrive,
+  Download,
+  LoaderCircle,
   Mail,
   Play,
   RefreshCw,
@@ -24,6 +26,7 @@ import {
   Stethoscope,
   Trash2,
   TriangleAlert,
+  Undo2,
   Wrench,
   X,
 } from '@lucide/vue'
@@ -382,7 +385,70 @@ async function copyAudit() {
   }
 }
 
+/* ---------------- updates ---------------- */
+
+interface UpdateStatus {
+  current: string
+  projectUrl: string
+  repository: string
+  lastCheckedAt: number
+  latest: { version: string; tag: string; name: string; notes: string; url: string; assetName: string | null } | null
+  available: { version: string; name: string; notes: string; url: string } | null
+  lastResult: { ok: boolean; detail: string; from: string; to: string; backup: string | null; at: number } | null
+  capabilities: { ok: boolean; canCheck: boolean; canInstall: boolean; problems: string[] }
+  backups: { name: string; at: number }[]
+  settings: { checkEnabled: boolean; checkHour: number; autoInstall: boolean }
+}
+
+const update = ref<UpdateStatus | null>(null)
+const updateError = ref<string | null>(null)
+const updateBusy = ref<'' | 'check' | 'install' | 'rollback'>('')
+
+async function loadUpdate() {
+  updateError.value = null
+  try {
+    update.value = await api.get<UpdateStatus>('/admin/update')
+  } catch (err) {
+    updateError.value = describe(err)
+  }
+}
+
+/**
+ * Run one of the update actions and adopt the status it answers with.
+ *
+ * The response is built by the code that is about to be replaced, so it is the
+ * last thing this version will ever say — worth showing verbatim rather than
+ * reloading and hoping the new code says something similar.
+ */
+async function runUpdate(action: 'check' | 'install' | 'rollback') {
+  updateBusy.value = action
+  updateError.value = null
+  try {
+    const response = await api.post<{ result: { ok: boolean; detail: string }; status: UpdateStatus }>(
+      `/admin/update/${action}`,
+      {},
+    )
+    update.value = response.status
+    if (response.result.ok) {
+      toast.success(response.result.detail)
+      if (action !== 'check') emit('changed')
+    } else {
+      toast.error(response.result.detail)
+    }
+  } catch (err) {
+    updateError.value = describe(err)
+    toast.error(updateError.value)
+  } finally {
+    updateBusy.value = ''
+  }
+}
+
+const updateAgo = computed(() =>
+  update.value?.lastCheckedAt ? ago(update.value.lastCheckedAt) : 'never',
+)
+
 onMounted(() => {
+  void loadUpdate()
   testAddress.value = session.user?.email ?? ''
   void loadChecks()
   void loadOutbox()
@@ -392,6 +458,147 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col gap-4">
+    <!-- Updates ----------------------------------------------------- -->
+    <section class="overflow-hidden rounded-xl border bg-card">
+      <header class="flex flex-col gap-0.5 border-b bg-muted/40 px-4 py-3">
+        <h2 class="flex items-center gap-2 text-sm font-semibold tracking-tight">
+          <Download class="size-4 text-muted-foreground" />
+          Updates
+          <InfoHint
+            title="Where updates come from"
+            wide
+            text="The GitHub repository this application was built from, which is compiled in and cannot be changed here. Checking asks for the newest release number; installing downloads that release and unpacks it over this installation, leaving config.php and storage/ alone and keeping a copy of everything it replaces."
+          />
+        </h2>
+        <p class="text-xs text-muted-foreground">
+          Whether the daily check runs, and what it does when it finds something, are on the
+          Settings tab.
+        </p>
+      </header>
+
+      <div v-if="!update && !updateError" class="p-4">
+        <Skeleton class="h-20" />
+      </div>
+
+      <Alert v-else-if="updateError" variant="destructive" class="m-4 w-auto">
+        <TriangleAlert />
+        <AlertTitle>The update status could not be read</AlertTitle>
+        <AlertDescription>{{ updateError }}</AlertDescription>
+      </Alert>
+
+      <div v-else-if="update" class="flex flex-col gap-4 p-4">
+        <div class="flex flex-wrap items-baseline gap-x-6 gap-y-2 text-sm">
+          <span class="flex items-baseline gap-2">
+            <span class="text-muted-foreground">Installed</span>
+            <span class="font-mono font-semibold">{{ update.current }}</span>
+          </span>
+          <span class="flex items-baseline gap-2">
+            <span class="text-muted-foreground">Newest release</span>
+            <span class="font-mono font-semibold">
+              {{ update.latest?.version ?? 'not checked yet' }}
+            </span>
+          </span>
+          <span class="flex items-baseline gap-2">
+            <span class="text-muted-foreground">Last checked</span>
+            <span>{{ updateAgo }}</span>
+          </span>
+          <a
+            :href="update.projectUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ml-auto font-mono text-xs text-muted-foreground underline-offset-4 hover:underline"
+          >
+            {{ update.repository }}
+          </a>
+        </div>
+
+        <!-- What this host can and cannot do about updates. -->
+        <Alert v-if="update.capabilities.problems.length" variant="destructive">
+          <TriangleAlert />
+          <AlertTitle>
+            {{ update.capabilities.canCheck ? 'Updates cannot be installed here' : 'Updates cannot be checked here' }}
+          </AlertTitle>
+          <AlertDescription>
+            <ul class="flex list-disc flex-col gap-1 pl-4">
+              <li v-for="problem in update.capabilities.problems" :key="problem">{{ problem }}</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
+
+        <div
+          v-if="update.available"
+          class="flex flex-col gap-2 rounded-lg border border-primary/40 bg-primary/5 p-3"
+        >
+          <p class="text-sm font-medium">
+            Version {{ update.available.version }} is available.
+            <a
+              :href="update.available.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="font-normal underline underline-offset-4"
+            >
+              Read the release notes
+            </a>
+          </p>
+          <p v-if="update.available.notes" class="line-clamp-4 text-xs whitespace-pre-line text-muted-foreground">
+            {{ update.available.notes }}
+          </p>
+        </div>
+        <p v-else-if="update.latest" class="text-sm text-muted-foreground">
+          This installation is running the newest release.
+        </p>
+
+        <p
+          v-if="update.lastResult?.detail"
+          class="text-xs"
+          :class="update.lastResult.ok ? 'text-muted-foreground' : 'text-destructive'"
+        >
+          Last install attempt: {{ update.lastResult.detail }}
+        </p>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            :disabled="updateBusy !== '' || !update.capabilities.canCheck"
+            @click="runUpdate('check')"
+          >
+            <LoaderCircle v-if="updateBusy === 'check'" class="animate-spin" />
+            <RefreshCw v-else />
+            Check now
+          </Button>
+
+          <Button
+            v-if="update.available"
+            size="sm"
+            :disabled="updateBusy !== '' || !update.capabilities.canInstall"
+            @click="runUpdate('install')"
+          >
+            <LoaderCircle v-if="updateBusy === 'install'" class="animate-spin" />
+            <Download v-else />
+            Install {{ update.available.version }}
+          </Button>
+
+          <Button
+            v-if="update.backups.length"
+            variant="outline"
+            size="sm"
+            :disabled="updateBusy !== ''"
+            @click="runUpdate('rollback')"
+          >
+            <LoaderCircle v-if="updateBusy === 'rollback'" class="animate-spin" />
+            <Undo2 v-else />
+            Undo the last update
+          </Button>
+
+          <span v-if="update.backups.length" class="text-xs text-muted-foreground">
+            Restores {{ update.backups[0].name }}. The database is not part of an update and is
+            left as it is.
+          </span>
+        </div>
+      </div>
+    </section>
+
     <!-- Maintenance ------------------------------------------------- -->
     <section class="overflow-hidden rounded-xl border bg-card">
       <header class="flex flex-col gap-0.5 border-b bg-muted/40 px-4 py-3">

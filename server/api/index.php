@@ -21,6 +21,7 @@ ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 error_reporting(E_ALL);
 
+require __DIR__ . '/lib/Version.php';
 require __DIR__ . '/lib/Paths.php';
 require __DIR__ . '/lib/Config.php';
 require __DIR__ . '/lib/Db.php';
@@ -38,10 +39,10 @@ require __DIR__ . '/lib/Validator.php';
 require __DIR__ . '/lib/SelfTest.php';
 require __DIR__ . '/lib/Router.php';
 require __DIR__ . '/lib/Palettes.php';
+require __DIR__ . '/lib/Updater.php';
 
 ini_set('error_log', Paths::storage() . '/php-error.log');
 
-const APP_VERSION = '1.3.0';
 
 set_exception_handler(static function (Throwable $e): void {
     error_log('[devcolorz] ' . $e::class . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());

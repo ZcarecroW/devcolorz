@@ -29,6 +29,7 @@ namespace DevColorz;
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
 
+require __DIR__ . '/api/lib/Version.php';
 require __DIR__ . '/api/lib/Paths.php';
 require __DIR__ . '/api/lib/Config.php';
 require __DIR__ . '/api/lib/Db.php';
@@ -44,6 +45,7 @@ require __DIR__ . '/api/lib/Auth.php';
 require __DIR__ . '/api/lib/Audit.php';
 require __DIR__ . '/api/lib/Palettes.php';
 require __DIR__ . '/api/lib/SelfTest.php';
+require __DIR__ . '/api/lib/Updater.php';
 require __DIR__ . '/api/lib/Cron.php';
 
 $notFound = static function (): never {
