@@ -37,6 +37,21 @@ export class ApiError extends Error {
     return this.status === 422 || this.status === 400
   }
 
+  /**
+   * The most specific sentence the server offered.
+   *
+   * A 422 carries "Some fields need attention." in `detail` and the sentence
+   * that actually explains the refusal — "Palettes are limited to 10 colors
+   * here." — in `errors`. Showing only `detail` told the user something was
+   * wrong and nothing about what.
+   */
+  get reason(): string {
+    const first = Object.values(this.problem.errors ?? {}).find(
+      (value): value is string => typeof value === 'string' && value.trim() !== '',
+    )
+    return first ?? this.message
+  }
+
   get needsCaptcha(): boolean {
     return Boolean(this.problem.captcha)
   }

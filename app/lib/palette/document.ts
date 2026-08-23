@@ -27,7 +27,8 @@ export interface PaletteDocColor {
   name?: string
   locked?: boolean
   /** OKLCH channels, so wide-gamut colors survive a round trip that hex cannot carry. */
-  oklch?: [l: number, c: number, h: number]
+  /** The fourth element is alpha, and is written only when it is not 1. */
+  oklch?: [l: number, c: number, h: number] | [l: number, c: number, h: number, alpha: number]
 }
 
 export interface PaletteDoc {
@@ -93,11 +94,20 @@ export function docFromState(state: PaletteState): PaletteDoc {
       hex: formatColor(color, 'hex'),
       name: state.names[index] ?? '',
       locked: Boolean(state.locks[index]),
-      oklch: [
-        Number((color.l ?? 0).toFixed(5)),
-        Number((color.c ?? 0).toFixed(5)),
-        Number((color.h ?? 0).toFixed(3)),
-      ] as [number, number, number],
+      // Alpha is appended rather than always written, so a document produced
+      // for an opaque palette is byte-identical to what earlier versions wrote.
+      oklch: (color.alpha === undefined || color.alpha >= 1
+        ? [
+            Number((color.l ?? 0).toFixed(5)),
+            Number((color.c ?? 0).toFixed(5)),
+            Number((color.h ?? 0).toFixed(3)),
+          ]
+        : [
+            Number((color.l ?? 0).toFixed(5)),
+            Number((color.c ?? 0).toFixed(5)),
+            Number((color.h ?? 0).toFixed(3)),
+            Number(color.alpha.toFixed(4)),
+          ]) as [number, number, number] | [number, number, number, number],
     })),
     seed: state.seed ?? null,
   }
@@ -124,7 +134,14 @@ export function stateFromPalette(item: PaletteSummary): PaletteState | null {
       // The stored channels win when they are there: hex has already lost
       // anything outside sRGB, and re-parsing it would bake that loss in.
       const parsed = doc?.oklch
-        ? ({ mode: 'oklch', l: doc.oklch[0], c: doc.oklch[1], h: doc.oklch[2] } satisfies Oklch)
+        ? ({
+            mode: 'oklch',
+            l: doc.oklch[0],
+            c: doc.oklch[1],
+            h: doc.oklch[2],
+            // Absent in every document written before alpha was carried.
+            ...(doc.oklch.length > 3 ? { alpha: doc.oklch[3] } : {}),
+          } satisfies Oklch)
         : parseColor(doc?.hex as string)
       if (!parsed) continue
       colors.push(parsed)

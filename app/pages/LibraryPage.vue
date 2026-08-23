@@ -88,7 +88,7 @@ const isFiltered = computed(() => query.value.trim().length > 0)
 function describe(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     if (err.isUnauthorized) signedOut.value = true
-    return err.message
+    return err.reason
   }
   return fallback
 }

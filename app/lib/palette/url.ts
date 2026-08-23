@@ -28,7 +28,9 @@ export interface PaletteState {
   extra?: Record<string, unknown>
 }
 
-const HEX_LIST = /^[0-9a-f]{6}(-[0-9a-f]{6})*$/i
+// Six digits, or eight when a colour carries alpha. Links written before
+// alpha was preserved are all six, and still read.
+const HEX_LIST = /^[0-9a-f]{6}(?:[0-9a-f]{2})?(-[0-9a-f]{6}(?:[0-9a-f]{2})?)*$/i
 
 /* ------------------------------------------------------------------ *
  * base64url
@@ -78,8 +80,20 @@ function isPlain(state: PaletteState): boolean {
   )
 }
 
+/**
+ * `rrggbb`, or `rrggbbaa` when the colour is not fully opaque.
+ *
+ * The adjust dialog has an alpha slider and a checkerboard to show the result,
+ * and every persistence path wrote six digits — so a translucent swatch came
+ * back opaque from a reload, a share link, or the library, with nothing said.
+ */
+function hexDigits(color: Oklch): string {
+  const alpha = color.alpha ?? 1
+  return formatColor(color, alpha < 1 ? 'hexa' : 'hex').slice(1)
+}
+
 export function encodeHexList(colors: Oklch[]): string {
-  return colors.map((c) => formatColor(c, 'hex').slice(1)).join('-')
+  return colors.map(hexDigits).join('-')
 }
 
 /**
@@ -93,7 +107,7 @@ export async function encodeState(state: PaletteState): Promise<string> {
 
   const doc = {
     v: 1,
-    c: state.colors.map((c) => formatColor(c, 'hex').slice(1)),
+    c: state.colors.map(hexDigits),
     l: state.locks.map((l) => (l ? 1 : 0)),
     n: state.names,
     s: state.seed ?? null,
