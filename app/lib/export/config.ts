@@ -70,6 +70,15 @@ export interface ExportConfig {
   darkDelivery: DarkDelivery
   /** Selector used for the class and attribute deliveries. */
   darkClass: string
+  /**
+   * Selector that forces light back on, for the media-plus-class delivery.
+   *
+   * It cannot be derived from `darkClass` by string surgery — the user can
+   * type anything there — and it cannot be hard-coded either, which is what
+   * made the light override outrank the media query and kill dark mode
+   * outright for anyone who had renamed the dark class.
+   */
+  lightClass: string
   darkAttribute: string
 
   /* ---- output shape ---- */
@@ -110,6 +119,7 @@ export const DEFAULT_EXPORT_CONFIG: ExportConfig = {
   chromaCompensation: 0.55,
   darkDelivery: 'class',
   darkClass: '.dark',
+  lightClass: '.light',
   darkAttribute: '[data-theme="dark"]',
 
   selector: ':root',
