@@ -51,6 +51,11 @@ interface PalettesResponse {
 
 const ANY = 'any'
 
+const emit = defineEmits<{
+  /** Something changed that the overview strip counts. */
+  (e: 'changed'): void
+}>()
+
 const query = ref('')
 const visibility = ref<string>(ANY)
 
@@ -105,6 +110,8 @@ async function patchPalette(
     items.value = items.value.map((row) =>
       row.uuid === palette.uuid ? { ...row, ...updated } : row,
     )
+    // Visibility and the trash both move counts the overview strip shows.
+    emit('changed')
     toast.success(note)
   } catch (err) {
     error.value = describe(err)

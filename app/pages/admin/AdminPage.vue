@@ -437,10 +437,10 @@ const cards = computed<StatCard[]>(() => {
           <SettingsTab />
         </TabsContent>
         <TabsContent value="users">
-          <UsersTab />
+          <UsersTab @changed="loadStats()" />
         </TabsContent>
         <TabsContent value="content">
-          <ContentTab />
+          <ContentTab @changed="loadStats()" />
         </TabsContent>
         <TabsContent value="system">
           <SystemTab @changed="loadStats()" />

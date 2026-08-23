@@ -85,6 +85,11 @@ interface UsersResponse {
   nextCursor: string | null
 }
 
+const emit = defineEmits<{
+  /** Something changed that the overview strip counts. */
+  (e: 'changed'): void
+}>()
+
 const session = useSessionStore()
 
 /** 'any' rather than '' because a select item cannot carry an empty value. */
@@ -174,6 +179,7 @@ async function patchUser(user: AdminUser, changes: Partial<Record<string, unknow
     // The response is the public shape, which drops the numeric id and the
     // counts this table shows — merge rather than replace.
     items.value = items.value.map((row) => (row.id === user.id ? { ...row, ...updated } : row))
+    emit('changed')
     toast.success(note)
   } catch (err) {
     // The select snaps back on its own, which on a long list looks like the
@@ -209,6 +215,7 @@ async function confirmDelete() {
   try {
     await api.delete(`/admin/users/${user.id}`)
     items.value = items.value.filter((row) => row.id !== user.id)
+    emit('changed')
     toast.success(`Deleted ${user.email}`)
   } catch (err) {
     // The error belongs next to the action that failed, and a destructive one
