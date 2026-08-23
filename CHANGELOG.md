@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.1 — 2026-08-23
+
+**Deleting a user from the admin console did nothing.** The confirmation
+dialog appeared, "Delete permanently" closed it, and the account stayed on the
+list — with no request sent, no error, and no toast.
+
+`AlertDialogAction` is reka's `DialogClose`: it closes the dialog from its own
+click handler, and Vue runs a child's own handler before the one that falls
+through from the parent. The dialog's open state was derived from
+`pendingDelete`, so closing it set that to `null` — and the confirm handler,
+running second, found nothing to delete and returned. The payload and the
+dialog's visibility are separate refs now, so the order cannot matter.
+
+A delete that fails also says so, in a toast as well as the inline banner. The
+bug had been present since 1.0.0.
+
 ## 1.1.0 — 2026-08-23
 
 A bug-fix pass over the whole project, starting from six reports and ending

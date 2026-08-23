@@ -100,7 +100,25 @@ const loading = ref(false)
 const loadingMore = ref(false)
 const error = ref<string | null>(null)
 const busyId = ref<number | null>(null)
+/**
+ * Who the confirmation dialog is about, and whether it is open.
+ *
+ * Two refs, deliberately. `AlertDialogAction` is reka's `DialogClose`, so it
+ * closes the dialog from its own click handler — and Vue runs a child's own
+ * handler before the one that falls through from the parent. Deriving the
+ * dialog's open state from `pendingDelete` therefore meant the close had
+ * already set it to null by the time `confirmDelete` read it: the dialog shut,
+ * nothing was requested, no error was shown, and the account stayed on the
+ * list. Keeping the payload separate from the visibility removes the ordering
+ * dependency entirely.
+ */
 const pendingDelete = ref<AdminUser | null>(null)
+const deleteOpen = ref(false)
+
+function askDelete(user: AdminUser) {
+  pendingDelete.value = user
+  deleteOpen.value = true
+}
 
 function describe(err: unknown): string {
   if (err instanceof ApiError) return err.message
@@ -168,7 +186,7 @@ async function act(user: AdminUser, path: string, note: string) {
 async function confirmDelete() {
   const user = pendingDelete.value
   if (!user) return
-  pendingDelete.value = null
+  deleteOpen.value = false
   busyId.value = user.id
   error.value = null
   try {
@@ -176,8 +194,12 @@ async function confirmDelete() {
     items.value = items.value.filter((row) => row.id !== user.id)
     toast.success(`Deleted ${user.email}`)
   } catch (err) {
+    // The error belongs next to the action that failed, and a destructive one
+    // that fails silently is the worst of both worlds.
     error.value = describe(err)
+    toast.error(`Could not delete ${user.email}`, { description: error.value })
   } finally {
+    pendingDelete.value = null
     busyId.value = null
   }
 }
@@ -400,7 +422,7 @@ const summary = computed(() =>
                   <DropdownMenuItem
                     variant="destructive"
                     :disabled="isSelf(user)"
-                    @click="pendingDelete = user"
+                    @click="askDelete(user)"
                   >
                     <Trash2 /> Delete account
                   </DropdownMenuItem>
@@ -433,10 +455,7 @@ const summary = computed(() =>
       </p>
     </div>
 
-    <AlertDialog
-      :open="pendingDelete !== null"
-      @update:open="(value: boolean) => { if (!value) pendingDelete = null }"
-    >
+    <AlertDialog v-model:open="deleteOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {{ pendingDelete?.email }}?</AlertDialogTitle>
