@@ -156,7 +156,12 @@ const draftName = ref('')
 const nameButton = ref<HTMLButtonElement | null>(null)
 
 function startRename() {
-  draftName.value = props.swatch.name || label.value
+  // Only ever the name the user actually gave. Pre-filling with `label` — the
+  // curated or structural description — meant a swatch with no name opened the
+  // field already holding text, and clicking away committed that text as a real
+  // name: an undo step, a dirty palette, and a name that then stopped following
+  // the colour. The description shows as the placeholder instead.
+  draftName.value = props.swatch.name
   editing.value = true
 }
 
@@ -333,7 +338,7 @@ function onKeydown(event: KeyboardEvent) {
         v-model="draftName"
         class="w-full rounded border border-current/30 bg-current/10 px-1.5 py-0.5 text-xs outline-none"
         :class="layout === 'row' ? 'max-w-[24ch] text-left' : 'max-w-[18ch] text-center'"
-        :placeholder="fallbackName"
+        :placeholder="label"
         autofocus
         @blur="commitRename(false)"
         @keydown.enter.prevent="commitRename(true)"

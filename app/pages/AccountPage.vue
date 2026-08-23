@@ -128,11 +128,15 @@ async function saveProfile() {
   profileError.value = ''
   profileFieldErrors.value = {}
   try {
-    const result = await api.patch<{ user: UserResponse }>('/auth/me', {
+    // The endpoint answers with the user itself, not { user }. Reading a key
+    // that is not there handed patchUser undefined, which merges nothing — so
+    // the save succeeded, the toast said so, and the field snapped back to the
+    // old name.
+    const updated = await api.patch<UserResponse>('/auth/me', {
       displayName: displayName.value.trim(),
       prefs: prefsPayload(),
     })
-    session.patchUser(result.user)
+    session.patchUser(updated)
     toast.success('Profile saved')
   } catch (error) {
     if (error instanceof ApiError && error.isValidation && error.problem.errors) {
@@ -336,11 +340,12 @@ async function savePrefs() {
   savingPrefs.value = true
   prefsError.value = ''
   try {
-    const result = await api.patch<{ user: UserResponse }>('/auth/me', {
-      displayName: (displayName.value.trim() || session.user?.displayName) ?? '',
-      prefs: prefsPayload(),
-    })
-    session.patchUser(result.user)
+    // Preferences save themselves the moment you pick one. Sending the display
+    // name along with them would commit whatever half-typed edit is sitting in
+    // the profile field, which the user has not pressed Save on. The endpoint
+    // only writes the keys it is given, so leaving it out is enough.
+    const updated = await api.patch<UserResponse>('/auth/me', { prefs: prefsPayload() })
+    session.patchUser(updated)
   } catch (error) {
     prefsError.value = describeFailure(error, 'The preference was not saved to the server.')
   } finally {

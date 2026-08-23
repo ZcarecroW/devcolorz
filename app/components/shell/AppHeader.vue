@@ -49,7 +49,24 @@ const isActive = (name: string) =>
   route.name === name || (name === 'studio' && route.name === 'shared')
 
 async function signOut() {
-  await session.logout()
+  // logout() clears the local session in a `finally`, so the header always
+  // updates — but if the request never reached the server the cookie is still
+  // valid there. Saying "Signed out" then would be a lie, and without a catch
+  // the redirect never ran either, leaving the user sitting on a page they no
+  // longer appear to have access to.
+  let reachedServer = true
+  try {
+    await session.logout()
+  } catch {
+    reachedServer = false
+  }
+  if (!reachedServer) {
+    toast.warning('Signed out on this device only', {
+      description: 'The server could not be reached, so the session may still be open elsewhere.',
+    })
+    if (route.meta.requiresAuth || route.meta.requiresAdmin) void router.push({ name: 'studio' })
+    return
+  }
   toast.success('Signed out')
   if (route.meta.requiresAuth || route.meta.requiresAdmin) void router.push({ name: 'studio' })
 }

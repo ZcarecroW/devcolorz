@@ -299,6 +299,9 @@ const testResult = ref<MailTestResult | null>(null)
  * mystery into a DNS record.
  */
 async function sendTest() {
+  // Re-entrancy guard, not just the disabled attribute: that only applies from
+  // the next render, and every extra call here is another real email.
+  if (testSending.value) return
   testSending.value = true
   testError.value = null
   testResult.value = null

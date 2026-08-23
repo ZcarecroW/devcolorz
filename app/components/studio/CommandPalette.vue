@@ -24,6 +24,7 @@ import { PALETTE_VIEWS } from '@/lib/palette/layout'
 import { CVD_IDS, CVD_TYPES } from '@/lib/color/cvd'
 import { HARMONY_HINTS, HARMONY_IDS, HARMONY_LABELS } from '@/lib/color/harmony'
 import { EMITTERS } from '@/lib/export/emitters'
+import { allLockedNotice } from '@/lib/palette/notices'
 import { usePaletteStore, type SortKey } from '@/stores/palette'
 import { useStudioStore } from '@/stores/studio'
 import { useThemeStore } from '@/stores/theme'
@@ -77,13 +78,13 @@ const groups: CommandGroupDef[] = [
         label: 'Generate new colors',
         hint: 'Re-rolls every unlocked swatch',
         keys: 'Space',
-        run: () => palette.roll(),
+        run: () => void (palette.roll() || allLockedNotice()),
       },
       ...HARMONY_IDS.map((id) => ({
         id: `gen-harmony-${id}`,
         label: `Harmony: ${HARMONY_LABELS[id]}`,
         hint: HARMONY_HINTS[id].split('. ')[0],
-        run: () => palette.applyHarmony(id),
+        run: () => void (palette.applyHarmony(id) || allLockedNotice()),
       })),
       {
         id: 'gen-learn',
@@ -180,7 +181,7 @@ const groups: CommandGroupDef[] = [
       id: `export-${emitter.id}`,
       label: `Export as ${emitter.label}`,
       hint: emitter.hint,
-      run: () => studio.openPanel('export'),
+      run: () => studio.openPanel('export', emitter.id),
     })),
   },
 ]

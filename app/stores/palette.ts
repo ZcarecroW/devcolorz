@@ -137,8 +137,11 @@ export const usePaletteStore = defineStore('palette', () => {
    * their distance from what the user chose to keep — the thing Coolors does
    * not do, which is why its locked palettes drift into near-duplicates.
    */
-  function roll(label = 'Generate') {
-    if (allLocked.value) return
+  function roll(label = 'Generate'): boolean {
+    // Returns false when there was nothing it could do, so the caller can say
+    // so. The store stays free of UI, but a guard that swallows the action
+    // without a word is indistinguishable from a broken button.
+    if (allLocked.value) return false
     commit(label)
     const keep = swatches.value.filter((s) => s.locked).map((s) => s.color)
     const needed = swatches.value.filter((s) => !s.locked).length
@@ -155,6 +158,7 @@ export const usePaletteStore = defineStore('palette', () => {
     swatches.value = swatches.value.map((s) =>
       s.locked ? s : { ...s, color: generated[index++] ?? s.color, name: '' },
     )
+    return true
   }
 
   /** Re-roll a single swatch, keeping it distinct from all the others. */
@@ -190,12 +194,16 @@ export const usePaletteStore = defineStore('palette', () => {
    * lock but slides every other hue one position over, which stops an
    * analogous set being analogous.
    */
-  function applyHarmony(id: HarmonyId, options: Partial<HarmonyOptions> = {}, anchorId?: string) {
+  function applyHarmony(
+    id: HarmonyId,
+    options: Partial<HarmonyOptions> = {},
+    anchorId?: string,
+  ): boolean {
     const anchor =
       (anchorId ? swatches.value.find((s) => s.id === anchorId) : undefined) ??
       swatches.value.find((s) => s.locked) ??
       swatches.value[0]
-    if (!anchor || allLocked.value) return
+    if (!anchor || allLocked.value) return false
 
     const generated = harmony(anchor.color, id, { count: count.value, ...options })
     /*
@@ -212,6 +220,7 @@ export const usePaletteStore = defineStore('palette', () => {
     let next = 0
     const merged = swatches.value.map((s) => (s.locked ? s.color : (usable[next++] ?? s.color)))
     setColors(merged, `Harmony: ${id}`)
+    return true
   }
 
   /* ---------------- editing ---------------- */
@@ -244,6 +253,10 @@ export const usePaletteStore = defineStore('palette', () => {
   }
 
   function setName(id: string, name: string) {
+    // Nothing to record if the name did not move. Without this, any caller that
+    // re-submits the same value pushes an empty step onto the undo stack and
+    // marks the palette dirty for a change that was never made.
+    if (swatches.value.find((s) => s.id === id)?.name === name) return
     commit('Rename color')
     swatches.value = swatches.value.map((s) => (s.id === id ? { ...s, name } : s))
   }

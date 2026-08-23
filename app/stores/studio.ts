@@ -40,6 +40,7 @@ interface Persisted {
   showContrastBadges: boolean
   cvd: CvdType
   paletteView: PaletteView
+  exportEmitter: string
 }
 
 const DEFAULTS: Persisted = {
@@ -54,6 +55,7 @@ const DEFAULTS: Persisted = {
   showContrastBadges: false,
   cvd: 'none',
   paletteView: 'columns',
+  exportEmitter: 'css',
 }
 
 function load(): { values: Persisted; restored: boolean } {
@@ -98,6 +100,16 @@ export const useStudioStore = defineStore('studio', () => {
 
   /** How the palette itself is laid out. See @/lib/palette/layout. */
   const paletteView = ref<PaletteView>(saved.paletteView)
+  /**
+   * Which export format the panel is showing.
+   *
+   * Store-owned rather than local to ExportPanel for two reasons: the command
+   * palette's sixteen "Export as …" entries need somewhere to put the format
+   * they name, and the panel lives inside a `TabsContent` that unmounts when
+   * hidden, so a local ref was thrown away every time the user looked at
+   * another tab.
+   */
+  const exportEmitter = ref<string>(saved.exportEmitter)
 
   /** The keyboard-shortcut cheat sheet. */
   const shortcutsOpen = ref(false)
@@ -117,6 +129,7 @@ export const useStudioStore = defineStore('studio', () => {
       showContrastBadges,
       cvd,
       paletteView,
+      exportEmitter,
     ],
     () => {
       try {
@@ -134,6 +147,7 @@ export const useStudioStore = defineStore('studio', () => {
             showContrastBadges: showContrastBadges.value,
             cvd: cvd.value,
             paletteView: paletteView.value,
+            exportEmitter: exportEmitter.value,
           } satisfies Persisted),
         )
       } catch {
@@ -142,9 +156,24 @@ export const useStudioStore = defineStore('studio', () => {
     },
   )
 
-  function openPanel(id: PanelId) {
+  /**
+   * Incremented by every openPanel call.
+   *
+   * `activePanel` and `leftPanelOpen` are states, and a watcher on a state only
+   * fires when the value changes — so asking for the panel that is already
+   * selected did nothing at sheet widths, where the panel is closed but the
+   * stored values already say "generate, open". This is the event.
+   */
+  const panelRequest = ref(0)
+
+  function openPanel(id: PanelId, emitter?: string) {
     activePanel.value = id
     leftPanelOpen.value = true
+    panelRequest.value += 1
+    // An explicit signature rather than two assignments at the call site, so
+    // the format and the panel it belongs to cannot be set in the wrong order
+    // or drift apart.
+    if (id === 'export' && emitter) exportEmitter.value = emitter
   }
 
   return {
@@ -159,6 +188,8 @@ export const useStudioStore = defineStore('studio', () => {
     showContrastBadges,
     cvd,
     paletteView,
+    exportEmitter,
+    panelRequest,
     shortcutsOpen,
     commandOpen,
     usingDefaults,

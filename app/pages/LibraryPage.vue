@@ -93,7 +93,16 @@ function describe(err: unknown, fallback: string): string {
   return fallback
 }
 
+/**
+ * Bumped by every list request. A response whose token is stale belongs to a
+ * search or sort the user has already moved on from, so it is dropped: without
+ * this, a slow "load more" could append its page to a list that had since been
+ * refiltered, and hand back the cursor that went with the old query.
+ */
+let listToken = 0
+
 async function load() {
+  const token = ++listToken
   loading.value = true
   error.value = null
   signedOut.value = false
@@ -101,30 +110,38 @@ async function load() {
     const page = await api.get<PaletteListResponse>('/palettes', {
       query: { q: query.value.trim(), sort: sort.value },
     })
+    if (token !== listToken) return
     items.value = page.items
     nextCursor.value = page.nextCursor
   } catch (err) {
+    if (token !== listToken) return
     items.value = []
     nextCursor.value = null
     error.value = describe(err, 'The library could not be reached. The rest of the app works offline.')
   } finally {
-    loading.value = false
+    if (token === listToken) loading.value = false
   }
 }
 
 async function loadMore() {
   if (!nextCursor.value || loadingMore.value) return
+  const token = ++listToken
+  const cursor = nextCursor.value
   loadingMore.value = true
   try {
     const page = await api.get<PaletteListResponse>('/palettes', {
-      query: { q: query.value.trim(), sort: sort.value, cursor: nextCursor.value },
+      query: { q: query.value.trim(), sort: sort.value, cursor },
     })
+    if (token !== listToken) return
     items.value = [...items.value, ...page.items]
     nextCursor.value = page.nextCursor
   } catch (err) {
+    if (token !== listToken) return
+    // Keep the cursor. Clearing it would make the grid claim the list is
+    // complete when all that happened is one page failed to arrive.
     toast.error(describe(err, 'Could not load more palettes.'))
   } finally {
-    loadingMore.value = false
+    if (token === listToken) loadingMore.value = false
   }
 }
 
@@ -137,6 +154,11 @@ function replace(updated: PaletteSummary) {
 }
 
 async function saveCurrent() {
+  // The button is disabled while this runs, but only from the next render —
+  // the flag is set here and the attribute lands a tick later. Clicks that
+  // arrive inside that window get through, and each one creates a palette. A
+  // guard in the function is the one that cannot be outrun.
+  if (creating.value) return
   if (!palette.count) {
     toast.error('The generator has no colors to save yet')
     return
@@ -162,23 +184,38 @@ async function saveCurrent() {
   }
 }
 
-async function patch(item: PaletteSummary, changes: Record<string, unknown>, failure: string) {
-  busyUuid.value = item.uuid
+async function patch(
+  item: PaletteSummary,
+  changes: Record<string, unknown>,
+  failure: string,
+  { busy = true } = {},
+): Promise<boolean> {
+  if (busy) busyUuid.value = item.uuid
   try {
     replace(await api.patch<PaletteSummary>(`/palettes/${item.uuid}`, changes))
+    return true
   } catch (err) {
     toast.error(describe(err, failure))
+    return false
   } finally {
-    busyUuid.value = null
+    if (busy) busyUuid.value = null
   }
 }
 
 function rename(item: PaletteSummary, title: string) {
-  void patch(item, { title }, 'The new title could not be saved.')
+  // Deliberately not busy. A rename is committed on blur, so the click that
+  // moved focus away — onto Delete, or Open, or the visibility select — lands
+  // while the request is still in flight, and disabling the card would eat it.
+  // The card shows the new title optimistically and a failure still raises a
+  // toast, so there is nothing here worth disabling the controls for.
+  void patch(item, { title }, 'The new title could not be saved.', { busy: false })
 }
 
 async function setVisibility(item: PaletteSummary, visibility: PaletteVisibility) {
-  await patch(item, { visibility }, 'The visibility could not be changed.')
+  // Only interpret the result if the write actually happened — otherwise the
+  // unchanged value looks exactly like a moderation downgrade, and a failure
+  // was being reported as "Queued for review".
+  if (!(await patch(item, { visibility }, 'The visibility could not be changed.'))) return
   // Moderation can downgrade a request to publish, so report what actually
   // happened rather than what was asked for.
   const applied = items.value.find((entry) => entry.uuid === item.uuid)?.visibility

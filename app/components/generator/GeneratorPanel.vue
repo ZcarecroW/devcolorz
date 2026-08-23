@@ -26,6 +26,7 @@ import { GAMUT_STRATEGY_HINTS, GAMUT_STRATEGY_LABELS } from '@/lib/color/gamut'
 import { rangeMidpoint } from '@/lib/color/gradient'
 import { previewSwatches, randomSeed } from '@/lib/color/random'
 import { SPACES, SPACE_IDS, getSpace } from '@/lib/color/spaces'
+import { allLockedNotice } from '@/lib/palette/notices'
 import { usePaletteStore } from '@/stores/palette'
 import type { ChannelConstraint, GamutStrategy, SpaceId } from '@/lib/color/types'
 
@@ -308,7 +309,7 @@ const seedText = computed({
     </div>
 
     <div class="flex flex-wrap gap-2">
-      <Button class="flex-1" @click="palette.roll()">
+      <Button class="flex-1" @click="palette.roll() || allLockedNotice()">
         <Sparkles /> Generate
       </Button>
       <Button

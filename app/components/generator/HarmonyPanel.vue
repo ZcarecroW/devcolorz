@@ -25,6 +25,7 @@ import {
   type HarmonyId,
   type HueWheel,
 } from '@/lib/color/harmony'
+import { allLockedNotice } from '@/lib/palette/notices'
 import { usePaletteStore } from '@/stores/palette'
 
 const palette = usePaletteStore()
@@ -74,11 +75,12 @@ function apply(id: HarmonyId) {
   // The anchor the user picked above, not whichever swatch happens to be
   // locked — the panel shows every preview built from that anchor, so applying
   // one from a different colour would not be the palette on screen.
-  palette.applyHarmony(
+  const applied = palette.applyHarmony(
     id,
     { wheel: wheel.value, angle: angle.value, vary: vary.value },
     anchor.value?.id,
   )
+  if (!applied) allLockedNotice()
 }
 </script>
 

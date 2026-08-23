@@ -49,6 +49,7 @@ import {
 import { FORMAT_HINTS, FORMAT_LABELS } from '@/lib/color/convert'
 import { CVD_IDS, CVD_TYPES, type CvdType } from '@/lib/color/cvd'
 import { PALETTE_VIEWS, VIEW_BY_ID, type PaletteView } from '@/lib/palette/layout'
+import { allLockedNotice } from '@/lib/palette/notices'
 import { MAX_SWATCHES, MIN_SWATCHES, usePaletteStore, type SortKey } from '@/stores/palette'
 import { useStudioStore } from '@/stores/studio'
 import type { ColorFormat } from '@/lib/color/types'
@@ -197,7 +198,7 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
       />
 
       <!-- Generate -->
-      <Button size="sm" class="gap-1.5" @click="palette.roll()">
+      <Button size="sm" class="gap-1.5" @click="palette.roll() || allLockedNotice()">
         <Sparkles />
         Generate
         <kbd

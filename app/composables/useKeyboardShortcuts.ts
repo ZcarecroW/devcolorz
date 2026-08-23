@@ -13,6 +13,7 @@
 
 import { onBeforeUnmount, onMounted } from 'vue'
 import { toast } from 'vue-sonner'
+import { allLockedNotice } from '@/lib/palette/notices'
 import { usePaletteStore } from '@/stores/palette'
 import { useStudioStore } from '@/stores/studio'
 import { useThemeStore } from '@/stores/theme'
@@ -127,8 +128,17 @@ export function useKeyboardShortcuts() {
         palette.hexes[i]
       };`)
       .join('\n')
-    await navigator.clipboard.writeText(`:root {\n${css}\n}`)
-    toast.success('CSS copied')
+    // Every button that copies handles a refused clipboard; these two
+    // shortcuts were the only paths that let the rejection go nowhere, which is
+    // the worst place for it — a keyboard user gets no visual answer at all.
+    try {
+      await navigator.clipboard.writeText(`:root {\n${css}\n}`)
+      toast.success('CSS copied')
+    } catch {
+      toast.error('Could not reach the clipboard', {
+        description: 'Your browser blocked it. Use Export to select the CSS and copy it manually.',
+      })
+    }
   }
 
   /**
@@ -180,10 +190,17 @@ export function useKeyboardShortcuts() {
         case 'l':
           if (event.shiftKey) {
             event.preventDefault()
-            void palette.shareUrl().then(async (url) => {
-              await navigator.clipboard.writeText(url)
-              toast.success('Link copied')
-            })
+            void palette
+              .shareUrl()
+              .then(async (url) => {
+                await navigator.clipboard.writeText(url)
+                toast.success('Link copied')
+              })
+              .catch(() => {
+                toast.error('Could not reach the clipboard', {
+                  description: 'Your browser blocked it. The link is in the address bar.',
+                })
+              })
           }
           return
         default:
@@ -205,7 +222,7 @@ export function useKeyboardShortcuts() {
         // Space belongs to the focused control, if there is one.
         if (ownsKey(event.target, ACTIVATION_CONSUMERS)) return
         event.preventDefault()
-        palette.roll()
+        if (!palette.roll()) allLockedNotice()
         return
       case '?':
         studio.shortcutsOpen = true

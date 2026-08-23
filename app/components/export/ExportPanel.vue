@@ -63,16 +63,45 @@ import type {
 } from '@/lib/export/config'
 import { EMITTERS, EMITTERS_BY_ID } from '@/lib/export/emitters'
 import { buildGraph, composeName, stemsFor } from '@/lib/export/graph'
+import { useStudioStore } from '@/stores/studio'
+import { useSessionStore } from '@/stores/session'
 import { usePaletteStore } from '@/stores/palette'
 
 const palette = usePaletteStore()
+const studio = useStudioStore()
+const session = useSessionStore()
 
 /**
  * Held in a `shallowRef` and replaced wholesale: the config carries raw color
  * objects in its overrides, and those must not be wrapped in a deep proxy.
  */
-const config = shallowRef<ExportConfig>({ ...DEFAULT_EXPORT_CONFIG, overrides: {} })
-const emitterId = ref('css')
+/**
+ * The instance's own starting point, where the administrator has set one.
+ *
+ * `engine.defaultDarkStrategy` is stored, served by `/meta` and given a full
+ * control in the admin console, and nothing read it — the panel always opened
+ * on the value compiled into the client.
+ */
+function startingConfig(): ExportConfig {
+  const strategy = session.meta?.defaults?.darkStrategy
+  return {
+    ...DEFAULT_EXPORT_CONFIG,
+    ...(strategy ? { darkStrategy: strategy as InvertStrategy } : {}),
+    overrides: {},
+  }
+}
+
+const config = shallowRef<ExportConfig>(startingConfig())
+/**
+ * Store-backed so the sixteen "Export as …" commands can select a format, and
+ * so the choice survives the panel being unmounted when another tab is shown.
+ * The `?? EMITTERS[0]` fallback downstream still covers a persisted id that no
+ * longer exists.
+ */
+const emitterId = computed({
+  get: () => studio.exportEmitter,
+  set: (value: string) => (studio.exportEmitter = value),
+})
 
 function patch(changes: Partial<ExportConfig>) {
   config.value = { ...config.value, ...changes }
@@ -285,7 +314,7 @@ function download() {
 }
 
 function resetAll() {
-  config.value = { ...DEFAULT_EXPORT_CONFIG, overrides: {} }
+  config.value = startingConfig()
 }
 
 /** Formats that carry no float channels, so the precision control does nothing. */

@@ -60,8 +60,14 @@ const panels = [
  */
 async function applyIncoming(next: PaletteState | null) {
   if (!next?.colors.length) return
-  const incoming = next.colors.map((c) => formatColor(c, 'hex')).join()
-  if (incoming === palette.hexes.join()) return
+  // Compare the whole state, not just the colours. A link carries names and
+  // locks too, and a palette that happens to hold the same six hexes is not
+  // the same palette — returning here threw away everything else the sender
+  // had put in the link, silently.
+  const sameColors = next.colors.map((c) => formatColor(c, 'hex')).join() === palette.hexes.join()
+  const sameNames = JSON.stringify(next.names ?? []) === JSON.stringify(palette.swatches.map((s) => s.name))
+  const sameLocks = (next.locks ?? []).join() === palette.swatches.map((s) => (s.locked ? 1 : 0)).join()
+  if (sameColors && sameNames && sameLocks) return
   if (palette.count) palette.loadState(next, 'Open shared palette')
   else palette.init(next)
   toast.success(`Loaded ${next.colors.length} colors from the link`)
@@ -104,6 +110,21 @@ onMounted(async () => {
      * them and every visitor still got the values baked into the client. They
      * apply here and only here: once someone has a palette, their choices win.
      */
+    /*
+     * The studio route does not wait for `/meta` — the generator works with no
+     * backend at all, and holding the first paint on a network call would give
+     * that up. But the defaults only matter for the very first palette, and at
+     * that moment there is nothing on screen to delay, so a short bounded wait
+     * is worth it. Past the deadline the client's own defaults are used, which
+     * is what happened unconditionally before: `session.meta` was still null
+     * here on every visit, so neither setting ever applied.
+     */
+    if (studio.usingDefaults && !session.meta) {
+      await Promise.race([
+        session.bootstrap(),
+        new Promise((resolve) => window.setTimeout(resolve, 1200)),
+      ])
+    }
     const defaults = session.meta?.defaults
     if (studio.usingDefaults && defaults) {
       if (defaults.gamut) palette.constraints.gamut = defaults.gamut as GamutStrategy
@@ -234,6 +255,14 @@ watch(
 )
 watch(
   () => studio.activePanel,
+  () => {
+    if (!wide.value) leftSheet.value = true
+  },
+)
+// Asking for a panel opens it even when it is the one already selected: the
+// counter changes on every request, where activePanel would not have.
+watch(
+  () => studio.panelRequest,
   () => {
     if (!wide.value) leftSheet.value = true
   },

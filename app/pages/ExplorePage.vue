@@ -104,41 +104,61 @@ function nudgeObserver() {
   })
 }
 
+/**
+ * Bumped by every list request. The gallery refilters on three watched inputs
+ * and pages from an intersection observer, so an in-flight page can easily
+ * outlive the query that asked for it; a response holding a stale token is
+ * dropped rather than appended to a list it does not belong to.
+ */
+let listToken = 0
+
 async function load() {
+  const token = ++listToken
   loading.value = true
   error.value = null
   try {
     const page = await api.get<PaletteListResponse>('/explore', { query: queryParams() })
+    if (token !== listToken) return
     items.value = page.items
     nextCursor.value = page.nextCursor
   } catch (err) {
+    if (token !== listToken) return
     items.value = []
     nextCursor.value = null
     error.value = describe(err, 'The gallery could not be reached. The generator works without it.')
   } finally {
-    loading.value = false
-    nudgeObserver()
+    if (token === listToken) {
+      loading.value = false
+      nudgeObserver()
+    }
   }
 }
 
 async function loadMore() {
   if (!nextCursor.value || loadingMore.value || loading.value) return
+  const token = ++listToken
+  const cursor = nextCursor.value
   loadingMore.value = true
   try {
     const page = await api.get<PaletteListResponse>('/explore', {
-      query: queryParams(nextCursor.value),
+      query: queryParams(cursor),
     })
+    if (token !== listToken) return
     // Guard against a duplicate page: offset paging can repeat an item when
     // something is published between two requests.
     const seen = new Set(items.value.map((item) => item.uuid))
     items.value = [...items.value, ...page.items.filter((item) => !seen.has(item.uuid))]
     nextCursor.value = page.nextCursor
   } catch (err) {
-    nextCursor.value = null
+    if (token !== listToken) return
+    // Keep the cursor: dropping it turns "one page failed" into "you have
+    // reached the end of the gallery", which is a different and wrong claim.
     toast.error(describe(err, 'Could not load more palettes.'))
   } finally {
-    loadingMore.value = false
-    nudgeObserver()
+    if (token === listToken) {
+      loadingMore.value = false
+      nudgeObserver()
+    }
   }
 }
 
