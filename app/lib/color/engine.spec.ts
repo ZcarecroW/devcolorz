@@ -4,8 +4,16 @@ import { buildGraph } from '@/lib/export/graph'
 import { EMITTERS_BY_ID } from '@/lib/export/emitters'
 import { makeSwatch } from '@/stores/palette'
 import { stateFromPalette } from '@/lib/palette/document'
-import { formatColor, parseColor } from './convert'
-import { apca, makeReadable, wcag, wcagLevel } from './contrast'
+import { formatColor, mustParse, parseColor } from './convert'
+import {
+  apca,
+  bestBlackOrWhite,
+  faintestReadable,
+  inkOver,
+  makeReadable,
+  wcag,
+  wcagLevel,
+} from './contrast'
 import { cssGamutMap, deltaEOK, isInGamut, maxChroma } from './gamut'
 import { harmony, fromRybHue, rotateHue, toRybHue } from './harmony'
 import { toDark } from './invert'
@@ -817,5 +825,53 @@ describe('regressions — the fixes themselves', () => {
         expect(new Set(hexes).size, `${id} locked at ${lockAt}`).toBe(hexes.length)
       }
     }
+  })
+})
+
+describe('faintestReadable — chrome that stays legible on any swatch', () => {
+  const lcOf = (hex: string, alpha: number) => {
+    const bg = mustParse(hex)
+    return Math.abs(apca(inkOver(bestBlackOrWhite(bg), bg, alpha), bg))
+  }
+
+  it('leaves the quiet fade alone where the colour can afford it', () => {
+    for (const hex of ['#ffffff', '#000000', '#f5f5f5', '#101010']) {
+      const bg = mustParse(hex)
+      expect(faintestReadable(bestBlackOrWhite(bg), bg, 60)).toBe(0.7)
+    }
+  })
+
+  it('firms up the mid-tones, where a fixed fade ate the contrast', () => {
+    for (const hex of ['#808080', '#6e8b3d', '#3b82f6']) {
+      const bg = mustParse(hex)
+      const alpha = faintestReadable(bestBlackOrWhite(bg), bg, 60)
+      expect(alpha).toBeGreaterThan(0.7)
+      expect(lcOf(hex, 0.7)).toBeLessThan(60) // what the old fixed fade gave
+      expect(lcOf(hex, alpha)).toBeGreaterThanOrEqual(59.5)
+    }
+  })
+
+  it('hits the target on every colour it is asked about', () => {
+    for (const hex of ['#808080', '#6e8b3d', '#8b6e3d', '#3d6e8b', '#ff0000', '#7f7f00', '#00ff88']) {
+      const bg = mustParse(hex)
+      const alpha = faintestReadable(bestBlackOrWhite(bg), bg, 60)
+      expect(lcOf(hex, alpha)).toBeGreaterThanOrEqual(59.5)
+      expect(alpha).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('never returns less than the floor, and never more than full strength', () => {
+    for (const hex of ['#808080', '#ffffff', '#7f7f7f']) {
+      const bg = mustParse(hex)
+      const alpha = faintestReadable(bestBlackOrWhite(bg), bg, 108, 0.6)
+      expect(alpha).toBeGreaterThanOrEqual(0.6)
+      expect(alpha).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('composites toward the background, so a fully faded ink is the background', () => {
+    const bg = mustParse('#3b82f6')
+    const blended = inkOver(bestBlackOrWhite(bg), bg, 0)
+    expect(Math.abs(apca(blended, bg))).toBe(0)
   })
 })

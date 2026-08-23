@@ -101,6 +101,52 @@ export function apca(text: ColorInput, background: ColorInput): number {
   return output * 100
 }
 
+/**
+ * What a translucent ink actually becomes over its background.
+ *
+ * Browsers composite in sRGB, so the contrast reaching the eye is that of this
+ * blend against the background — never that of the ink on its own.
+ */
+export function inkOver(ink: ColorInput, background: ColorInput, alpha: number): Rgb {
+  const a = toRgb(ink)
+  const b = toRgb(background)
+  const mix = (x: number, y: number) => alpha * x + (1 - alpha) * y
+  return { mode: 'rgb', r: mix(a.r, b.r), g: mix(a.g, b.g), b: mix(a.b, b.b) }
+}
+
+/**
+ * The faintest an ink may be drawn over a background and still read at `target` Lc.
+ *
+ * Faded chrome is drawn in the foreground colour at some opacity, which quietly
+ * makes its legibility a function of whatever sits underneath: the same 0.7
+ * costs little over white or black and a great deal over a mid-tone. Solving
+ * for the opacity instead of fixing it keeps the intent — quiet chrome — while
+ * making the result the same everywhere.
+ *
+ * Returns `floor` when the fade is already affordable and 1 when even full
+ * strength cannot reach the target, so the answer is always usable as-is.
+ */
+export function faintestReadable(
+  ink: ColorInput,
+  background: ColorInput,
+  target: number,
+  floor = 0.7,
+): number {
+  const reads = (alpha: number) => Math.abs(apca(inkOver(ink, background, alpha), background))
+  if (reads(floor) >= target) return floor
+  if (reads(1) < target) return 1
+  let low = floor
+  let high = 1
+  // Ten halvings land within 0.001 of the crossing — finer than the eye, and
+  // finer than the two decimals the value is rounded to.
+  for (let i = 0; i < 10; i += 1) {
+    const mid = (low + high) / 2
+    if (reads(mid) >= target) high = mid
+    else low = mid
+  }
+  return Math.round(high * 100) / 100
+}
+
 /** Human-readable verdict for an APCA Lc value. */
 export function apcaVerdict(lc: number): { label: string; use: string; ok: boolean } {
   const v = Math.abs(lc)

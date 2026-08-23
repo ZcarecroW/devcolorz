@@ -20,7 +20,7 @@ import {
 } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { formatColor } from '@/lib/color/convert'
-import { apca, bestBlackOrWhite } from '@/lib/color/contrast'
+import { apca, bestBlackOrWhite, faintestReadable } from '@/lib/color/contrast'
 import { describeColor, nearestName } from '@/lib/color/name'
 import { isInGamut } from '@/lib/color/gamut'
 import type { ColorFormat, Swatch } from '@/lib/color/types'
@@ -125,6 +125,29 @@ const chromeContrast = computed(() =>
   Math.abs(apca(bestBlackOrWhite(props.swatch.color), props.swatch.color)),
 )
 
+/**
+ * How solid the swatch's own chrome has to be to stay legible.
+ *
+ * The controls are drawn in the swatch's ink and faded, so what the eye gets is
+ * the ink *composited over the swatch* — never the ink itself. A fixed fade
+ * therefore made legibility a function of the colour underneath: at 0.7 it
+ * costs 24–33 Lc, which white and near-black can spare and a mid-tone cannot.
+ * Measured, #808080 fell from Lc 72 to 48 and the drag handle at 0.6 to Lc 40,
+ * under the Lc 45 this app's own scale gives as the floor for an icon. The
+ * buttons read as washed out until you hovered one, which restored full ink.
+ *
+ * Light and dark swatches solve back to the original 0.7 and look unchanged;
+ * only the middle of the range firms up.
+ */
+/** Lc 60: small interactive icons, with headroom over the Lc 45 icon floor. */
+const chromeIdle = computed(() =>
+  faintestReadable(bestBlackOrWhite(props.swatch.color), props.swatch.color, 60),
+)
+/** The drag handle is secondary, so it may sit at the icon floor itself. */
+const chromeIdleSoft = computed(() =>
+  faintestReadable(bestBlackOrWhite(props.swatch.color), props.swatch.color, 45, 0.6),
+)
+
 // The curated name list is a lazily loaded chunk, so the column renders
 // immediately with a structural description and upgrades when it arrives.
 watch(
@@ -210,7 +233,13 @@ function onKeydown(event: KeyboardEvent) {
       dragging && 'opacity-40',
       swatch.locked && 'ring-inset ring-2 ring-[color:var(--swatch-ink)]/35',
     ]"
-    :style="{ background, color: textColor, '--swatch-ink': textColor }"
+    :style="{
+      background,
+      color: textColor,
+      '--swatch-ink': textColor,
+      '--chrome-idle': chromeIdle,
+      '--chrome-idle-soft': chromeIdleSoft,
+    }"
     :data-layout="layout"
     :data-swatch-id="swatch.id"
     :aria-label="`Color ${index + 1} of ${total}: ${label}, ${display}`"
@@ -242,7 +271,7 @@ function onKeydown(event: KeyboardEvent) {
     >
       <button
         type="button"
-        class="cursor-grab rounded-md p-1.5 opacity-60 transition hover:bg-current/12 hover:opacity-100 active:cursor-grabbing @max-[5rem]/swatch:hidden"
+        class="cursor-grab rounded-md p-1.5 opacity-(--chrome-idle-soft) transition-[opacity,background-color] hover:bg-current/12 hover:opacity-100 active:cursor-grabbing @max-[5rem]/swatch:hidden"
         :aria-label="`Drag to reorder ${label}`"
         draggable="true"
         @dragstart="emit('dragStart', $event)"
@@ -254,7 +283,7 @@ function onKeydown(event: KeyboardEvent) {
       <div class="flex items-center gap-0.5 @max-[9rem]/swatch:flex-col">
         <button
           type="button"
-          class="rounded-md p-1.5 opacity-70 transition hover:bg-current/12 hover:opacity-100"
+          class="rounded-md p-1.5 opacity-(--chrome-idle) transition-[opacity,background-color] hover:bg-current/12 hover:opacity-100"
           :aria-label="`Adjust ${label}`"
           title="Adjust this color"
           @click="emit('adjust')"
@@ -263,7 +292,7 @@ function onKeydown(event: KeyboardEvent) {
         </button>
         <button
           type="button"
-          class="rounded-md p-1.5 opacity-70 transition hover:bg-current/12 hover:opacity-100 disabled:opacity-25"
+          class="rounded-md p-1.5 opacity-(--chrome-idle) transition-[opacity,background-color] hover:bg-current/12 hover:opacity-100 disabled:opacity-25"
           :aria-label="`Re-roll ${label}`"
           title="Generate a new color here"
           :disabled="swatch.locked"
@@ -273,8 +302,8 @@ function onKeydown(event: KeyboardEvent) {
         </button>
         <button
           type="button"
-          class="rounded-md p-1.5 transition hover:bg-current/12"
-          :class="swatch.locked ? 'opacity-100' : 'opacity-70 hover:opacity-100'"
+          class="rounded-md p-1.5 transition-[opacity,background-color] hover:bg-current/12"
+          :class="swatch.locked ? 'opacity-100' : 'opacity-(--chrome-idle) hover:opacity-100'"
           :aria-label="swatch.locked ? `Unlock ${label}` : `Lock ${label}`"
           :aria-pressed="swatch.locked"
           :title="swatch.locked ? 'Unlock — this color will change again' : 'Lock — keep this color when generating'"
@@ -286,7 +315,7 @@ function onKeydown(event: KeyboardEvent) {
         <button
           v-if="canRemove"
           type="button"
-          class="rounded-md p-1.5 opacity-70 transition hover:bg-current/12 hover:opacity-100"
+          class="rounded-md p-1.5 opacity-(--chrome-idle) transition-[opacity,background-color] hover:bg-current/12 hover:opacity-100"
           :aria-label="`Remove ${label}`"
           title="Remove this color"
           @click="emit('remove')"
@@ -348,7 +377,7 @@ function onKeydown(event: KeyboardEvent) {
         v-else
         ref="nameButton"
         type="button"
-        class="truncate rounded px-1.5 py-0.5 text-xs opacity-70 transition hover:bg-current/12 hover:opacity-100 @max-[4.5rem]/swatch:hidden"
+        class="truncate rounded px-1.5 py-0.5 text-xs opacity-(--chrome-idle) transition-[opacity,background-color] hover:bg-current/12 hover:opacity-100 @max-[4.5rem]/swatch:hidden"
         :class="nameClass"
         title="Click to rename"
         @click="startRename"
