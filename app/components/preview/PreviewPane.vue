@@ -407,9 +407,18 @@ const derivedRoles = computed(() => legend.value.filter((entry) => entry.derived
           :class="entry.id === studio.previewTemplate ? 'border-primary' : ''"
         >
           <div class="relative overflow-hidden" :style="{ height: `${tileHeight}px` }">
+            <!--
+              `inert` as well as `aria-hidden`. The templates render their own
+              tooltip triggers, and a focusable button inside an aria-hidden
+              subtree is the classic failure: tabbing through the grid landed
+              on buttons that announced nothing and opened a tooltip about a
+              template the reader could not see. Nothing here was ever
+              clickable anyway — the tile's own stretched button covers it.
+            -->
             <div
               class="absolute top-0 left-0 origin-top-left"
               aria-hidden="true"
+              inert
               :style="{
                 width: `${TILE_WIDTH}px`,
                 height: `${TILE_HEIGHT}px`,

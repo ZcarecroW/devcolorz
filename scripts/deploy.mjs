@@ -7,8 +7,9 @@
  *   DEVCOLORZ_FTP_HOST, DEVCOLORZ_FTP_USER, DEVCOLORZ_FTP_PASSWORD
  *   DEVCOLORZ_FTP_ROOT      (default "/")
  *   DEVCOLORZ_FTP_SECURE    ("true" | "false" | "implicit", default true)
+ *   DEVCOLORZ_FTP_INSECURE_TLS  ("true" to skip certificate verification)
  *
- * Run: node scripts/deploy.mjs [--dry] [--only=api] [--keep-storage]
+ * Run: node scripts/deploy.mjs [--dry] [--only=api]
  *
  * The remote `storage/` directory and `config.php` are never touched: they hold
  * the live database and the installation secrets. Deleting them would wipe
@@ -37,6 +38,11 @@ function loadConfig() {
     password: process.env.DEVCOLORZ_FTP_PASSWORD ?? fromFile.password,
     root: process.env.DEVCOLORZ_FTP_ROOT ?? fromFile.root ?? '/',
     secure: process.env.DEVCOLORZ_FTP_SECURE ?? fromFile.secure ?? true,
+    // Opt-out for a host with a self-signed or mismatched certificate. Off by
+    // default: this connection carries the account password in the clear
+    // inside the TLS session, so an unverified peer is the whole risk.
+    insecureTls:
+      (process.env.DEVCOLORZ_FTP_INSECURE_TLS ?? String(fromFile.insecureTls ?? '')) === 'true',
   }
   if (!config.host || !config.user || !config.password) {
     console.error(
@@ -98,12 +104,24 @@ async function main() {
   client.ftp.verbose = false
 
   try {
+    /*
+     * The certificate is verified.
+     *
+     * `rejectUnauthorized: false` used to sit here, which meant the FTPS
+     * session that carries the account password in plaintext AUTH TLS would
+     * accept any certificate at all — the one thing TLS is for. Hosts with a
+     * self-signed or mismatched certificate can opt out per deployment with
+     * `"insecureTls": true` in deploy.config.json, and it says so out loud.
+     */
+    if (config.insecureTls) {
+      console.warn('WARNING: TLS certificate verification is disabled for this connection.')
+    }
     await client.access({
       host: config.host,
       user: config.user,
       password: config.password,
       secure: config.secure,
-      secureOptions: { rejectUnauthorized: false },
+      secureOptions: { rejectUnauthorized: config.insecureTls !== true },
     })
 
     // Directories first, so an upload never races its own parent.

@@ -45,7 +45,20 @@ function rehue(values: TokenValues, shift: number, chromaScale = 1): TokenValues
   return out
 }
 
-function grayscale(values: TokenValues): TokenValues {
+const CHART_KEYS = ['chart-1', 'chart-2', 'chart-3', 'chart-4', 'chart-5'] as const
+
+/**
+ * Drop every colour to its lightness.
+ *
+ * The chart tokens need their own ramp afterwards. In the source theme the
+ * five of them are separated by hue and chroma, not by lightness — dropping
+ * those left chart-1 and chart-4 six ten-thousandths of an L apart, which is
+ * one grey wearing two names, and a bar chart with two provably identical
+ * series. `chartRamp` is the lightness band they are respread across; it has
+ * to be given per mode, because the band that reads on a white surface is not
+ * the one that reads on a near-black one.
+ */
+function grayscale(values: TokenValues, chartRamp: [number, number]): TokenValues {
   const out: TokenValues = { ...values }
   for (const [key, value] of Object.entries(values)) {
     const match = /^oklch\(([\d.]+)\s+([\d.]+)\s+([\d.-]+)\)$/.exec(value)
@@ -53,6 +66,13 @@ function grayscale(values: TokenValues): TokenValues {
     const l = Number(match[1])
     out[key] = `oklch(${l} 0 0)`
   }
+
+  const [from, to] = chartRamp
+  const step = (to - from) / Math.max(1, CHART_KEYS.length - 1)
+  CHART_KEYS.forEach((key, index) => {
+    if (!(key in out)) return
+    out[key] = `oklch(${Number((from + index * step).toFixed(4))} 0 0)`
+  })
   return out
 }
 
@@ -96,8 +116,10 @@ export const THEME_PRESETS: ThemeDefinition[] = [
     id: 'graphite',
     name: 'Graphite',
     author: 'DevColorz',
-    light: { ...grayscale(signalLight), radius: '0.375rem' },
-    dark: { ...grayscale(signalDark), radius: '0.375rem' },
+    // Wide enough that neighbouring series are a comfortable step apart, and
+    // bounded so no series merges into the surface it is drawn on.
+    light: { ...grayscale(signalLight, [0.28, 0.78]), radius: '0.375rem' },
+    dark: { ...grayscale(signalDark, [0.42, 0.9]), radius: '0.375rem' },
   },
 ]
 

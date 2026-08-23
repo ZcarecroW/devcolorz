@@ -13,7 +13,7 @@
  *    pointer-up, blur, enter — rather than on every tick.
  */
 
-import { computed, ref, shallowRef, triggerRef } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import { formatColor, parseColor } from '@/lib/color/convert'
 import { deltaEOK } from '@/lib/color/gamut'
@@ -142,12 +142,14 @@ export const usePaletteStore = defineStore('palette', () => {
     commit(label)
     const keep = swatches.value.filter((s) => s.locked).map((s) => s.color)
     const needed = swatches.value.filter((s) => !s.locked).length
-    const nextSeed = seed.value ?? randomSeed()
+    // No `seed` option: the generator falls back to `constraints.seed` and then
+    // to a fresh one. Passing a seed here overrode the Seed field entirely, so
+    // typing a number into it and pressing Generate twice produced two
+    // unrelated palettes while the panel promised reproducibility.
     const generated = generatePalette({
       count: needed,
       constraints: constraints.value,
       avoid: keep,
-      seed: nextSeed,
     })
     let index = 0
     swatches.value = swatches.value.map((s) =>
@@ -180,11 +182,36 @@ export const usePaletteStore = defineStore('palette', () => {
     })
   }
 
-  function applyHarmony(id: HarmonyId, options: Partial<HarmonyOptions> = {}) {
-    const anchor = swatches.value.find((s) => s.locked) ?? swatches.value[0]
-    if (!anchor) return
+  /**
+   * Replace the palette with a harmony built around an anchor.
+   *
+   * Locked colours keep theirs. The generated colour that would have landed on
+   * a locked slot is dropped rather than shifted along: shifting preserves the
+   * lock but slides every other hue one position over, which stops an
+   * analogous set being analogous.
+   */
+  function applyHarmony(id: HarmonyId, options: Partial<HarmonyOptions> = {}, anchorId?: string) {
+    const anchor =
+      (anchorId ? swatches.value.find((s) => s.id === anchorId) : undefined) ??
+      swatches.value.find((s) => s.locked) ??
+      swatches.value[0]
+    if (!anchor || allLocked.value) return
+
     const generated = harmony(anchor.color, id, { count: count.value, ...options })
-    setColors(generated, `Harmony: ${id}`)
+    /*
+     * Every scheme contains the anchor itself. Where in the returned array it
+     * sits depends on the scheme — first for most, the middle for analogous —
+     * so it cannot be dropped by index. Dropping anything that reproduces a
+     * locked colour is the general rule: placed on an unlocked slot it would
+     * make the palette contain that colour twice, which is precisely what the
+     * lock was protecting against.
+     */
+    const locked = swatches.value.filter((s) => s.locked).map((s) => s.color)
+    const usable = generated.filter((c) => !locked.some((l) => deltaEOK(c, l) * 100 < 1))
+
+    let next = 0
+    const merged = swatches.value.map((s) => (s.locked ? s.color : (usable[next++] ?? s.color)))
+    setColors(merged, `Harmony: ${id}`)
   }
 
   /* ---------------- editing ---------------- */
@@ -200,13 +227,20 @@ export const usePaletteStore = defineStore('palette', () => {
 
   /**
    * Live-update a color without touching history.
+   *
    * Used while a slider is being dragged; the caller commits on pointer-up.
+   * Replaces the array rather than mutating it and calling `triggerRef`: the
+   * computeds woke up either way, but a watcher whose source is a getter only
+   * fires when the returned value *changes identity*, so the studio's URL sync
+   * never ran and the address bar kept a share link for the colour the swatch
+   * used to be.
    */
   function previewColor(id: string, color: Oklch) {
     const index = swatches.value.findIndex((s) => s.id === id)
     if (index < 0) return
-    swatches.value[index] = { ...swatches.value[index], color }
-    triggerRef(swatches)
+    const next = swatches.value.slice()
+    next[index] = { ...next[index], color }
+    swatches.value = next
   }
 
   function setName(id: string, name: string) {
@@ -405,6 +439,18 @@ export const usePaletteStore = defineStore('palette', () => {
 
   /* ---------------- lifecycle ---------------- */
 
+  /**
+   * How many colours a brand-new palette gets.
+   *
+   * A ref rather than the constant, so the instance's `engine.defaultSwatchCount`
+   * setting can reach it before the first roll.
+   */
+  const defaultCount = ref(DEFAULT_SWATCH_COUNT)
+
+  function setDefaultCount(n: number) {
+    defaultCount.value = Math.max(MIN_SWATCHES, Math.min(MAX_SWATCHES, Math.round(n)))
+  }
+
   function init(initial?: PaletteState | null) {
     suppressHistory = true
     if (initial?.colors.length) {
@@ -414,7 +460,7 @@ export const usePaletteStore = defineStore('palette', () => {
       if (initial.seed != null) seed.value = initial.seed
     } else {
       const generated = generatePalette({
-        count: DEFAULT_SWATCH_COUNT,
+        count: defaultCount.value,
         constraints: constraints.value,
         seed: randomSeed(),
       })
@@ -468,6 +514,7 @@ export const usePaletteStore = defineStore('palette', () => {
     learnConstraints,
     roles,
     toState,
+    setDefaultCount,
     loadState,
     shareUrl,
     importFromText,

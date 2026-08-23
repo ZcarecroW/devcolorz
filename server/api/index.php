@@ -41,7 +41,7 @@ require __DIR__ . '/lib/Palettes.php';
 
 ini_set('error_log', Paths::storage() . '/php-error.log');
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 
 set_exception_handler(static function (Throwable $e): void {
     error_log('[devcolorz] ' . $e::class . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
@@ -117,6 +117,10 @@ if (!Config::installed()) {
 
 Paths::ensure();
 Db::connect();
+// An upgrade is "upload it over the top", so the request path has to be able
+// to bring the schema forward on its own. Guarded by a marker file, so the
+// steady-state cost is one `is_file` per request.
+Schema::migrateIfNeeded();
 
 // Maintenance mode still lets an administrator in, otherwise turning it on
 // would lock out the only person who can turn it off.

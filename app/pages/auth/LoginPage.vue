@@ -76,8 +76,18 @@ function failed(error: unknown) {
     return
   }
   if (error.needsCaptcha) {
+    /*
+     * The captcha flag means "you will need one next time", not "the captcha
+     * was the problem". Someone who solved the challenge correctly and then
+     * mistyped their password was told to solve the check again, with no hint
+     * that the password was wrong — so the server's own wording wins, and the
+     * instruction is only added the first time the widget appears.
+     */
+    const firstReveal = !captchaRequired.value
     captchaRequired.value = true
-    formError.value = 'Solve the check below, then sign in again.'
+    formError.value = firstReveal
+      ? `${error.message} Solve the check below before trying again.`
+      : error.message
     return
   }
   if (error.isValidation && error.problem.errors) {

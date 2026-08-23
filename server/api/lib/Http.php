@@ -86,6 +86,42 @@ final class Http
     }
 
     /**
+     * Whether this request reached the user's browser over TLS.
+     *
+     * `$_SERVER['HTTPS']` is unset whenever something upstream terminates TLS
+     * and forwards plain HTTP — a CDN, a load balancer, a reverse proxy. The
+     * consequences all land at once: the session cookie loses `Secure` and its
+     * `__Host-` prefix, the installer records an `http://` base URL, and every
+     * write then fails CSRF because the browser sends an `https://` Origin
+     * that no longer matches.
+     *
+     * The forwarded header is only believed when `trust_proxy` is switched on
+     * in config.php. On a directly-reachable host that header is set by the
+     * client, so trusting it by default would let anyone claim TLS — the same
+     * reasoning `ip()` gives for refusing X-Forwarded-For.
+     */
+    public static function isSecure(): bool
+    {
+        $https = (string) ($_SERVER['HTTPS'] ?? '');
+        if ($https !== '' && strtolower($https) !== 'off') {
+            return true;
+        }
+        if ((int) ($_SERVER['SERVER_PORT'] ?? 0) === 443) {
+            return true;
+        }
+        if (!Config::bool('trust_proxy')) {
+            return false;
+        }
+        if (strtolower(self::header('X-Forwarded-Proto')) === 'https') {
+            return true;
+        }
+        if (strtolower(self::header('X-Forwarded-SSL')) === 'on') {
+            return true;
+        }
+        return strtolower(self::header('Front-End-Https')) === 'on';
+    }
+
+    /**
      * The client's IP address.
      *
      * `REMOTE_ADDR` only. `X-Forwarded-For` is set by the client on a direct
@@ -145,8 +181,7 @@ final class Http
     /** The origin this installation is actually served from. */
     public static function selfOrigin(): string
     {
-        $https = ($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? '') !== 'off';
-        $scheme = $https ? 'https' : 'http';
+        $scheme = self::isSecure() ? 'https' : 'http';
         $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
         return $scheme . '://' . $host;
     }

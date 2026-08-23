@@ -52,7 +52,7 @@ const open = ref(false)
             )
           "
           :aria-label="props.title ? `About ${props.title}` : 'More information'"
-          @click.prevent
+          @click.stop.prevent
         >
           <slot name="trigger">
             <Info class="size-3.5" />

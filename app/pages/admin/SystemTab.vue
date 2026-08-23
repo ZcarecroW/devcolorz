@@ -126,7 +126,7 @@ const MAINTENANCE: MaintenanceAction[] = [
     label: 'Prune expired rows',
     icon: Trash2,
     hintTitle: 'Housekeeping',
-    hint: 'Deletes expired sessions, spent tokens, stale rate-limit counters, sent mail and palettes past their trash window. Cron does this on a schedule; run it by hand after cron has been down, or when you want the counts on the overview to reflect reality right now.',
+    hint: 'Deletes expired sessions, spent tokens, stale rate-limit counters, sent mail, palettes past their trash window and audit entries older than 180 days. Cron does this on a schedule; run it by hand after cron has been down, or when you want the counts on the overview to reflect reality right now.',
   },
 ]
 
@@ -271,16 +271,42 @@ async function deleteMessage(item: OutboxItem) {
   }
 }
 
+interface MailTestResult {
+  sent: boolean
+  error: string
+  envelope: {
+    from: string
+    fromName: string
+    bounce: string
+    forced: string
+    available: boolean
+  }
+}
+
 const testAddress = ref('')
 const testSending = ref(false)
 const testError = ref<string | null>(null)
+const testResult = ref<MailTestResult | null>(null)
 
+/**
+ * The envelope is shown after every test, success or not.
+ *
+ * A `true` from `mail()` means the local transport accepted the message, which
+ * is a much weaker claim than "it arrived". When the two disagree the reason is
+ * nearly always the From address: a domain this server is not authorised to
+ * send for fails SPF and DMARC at the receiving end and is dropped without a
+ * bounce. Printing the address the test actually used is what turns that from a
+ * mystery into a DNS record.
+ */
 async function sendTest() {
   testSending.value = true
   testError.value = null
+  testResult.value = null
   try {
-    await api.post('/admin/mail/test', { to: testAddress.value })
-    toast.success(`Queued a test message to ${testAddress.value}`)
+    const result = await api.post<MailTestResult>('/admin/mail/test', { to: testAddress.value })
+    testResult.value = result
+    if (result.sent) toast.success(`Handed a test message to the mail transport agent`)
+    else toast.error('The host refused the message')
     await loadOutbox()
   } catch (err) {
     testError.value =
@@ -517,7 +543,7 @@ onMounted(() => {
             <InfoHint
               title="What the test proves"
               wide
-              text="It queues a real message and flushes the queue immediately, so a success here means this host accepted the mail — not that it arrived. Delivery still depends on SPF, DKIM and the receiving side's opinion of your domain, so check the destination inbox and its spam folder before declaring victory."
+              text="It sends a real message straight through, bypassing the queue, so the result describes this message and nothing else. A success means the host accepted the mail — not that it arrived. Delivery still depends on SPF, DKIM and the receiving side's opinion of your domain, so check the destination inbox and its spam folder before declaring victory."
             />
           </Label>
           <Input
@@ -533,6 +559,32 @@ onMounted(() => {
           <Send /> {{ testSending ? 'Sending…' : 'Send test' }}
         </Button>
         <p v-if="testError" class="w-full text-xs text-destructive">{{ testError }}</p>
+
+        <div v-if="testResult" class="w-full rounded-md border bg-muted/40 p-3 text-xs leading-relaxed">
+          <p :class="testResult.sent ? 'font-medium text-foreground' : 'font-medium text-destructive'">
+            {{
+              testResult.sent
+                ? 'The host accepted the message. It has not necessarily been delivered.'
+                : 'The host refused the message.'
+            }}
+          </p>
+          <p v-if="testResult.error" class="mt-1 text-destructive">{{ testResult.error }}</p>
+          <dl class="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-muted-foreground">
+            <dt>From</dt>
+            <dd class="font-mono break-all">{{ testResult.envelope.from }}</dd>
+            <dt>Envelope sender</dt>
+            <dd class="font-mono break-all">
+              {{ testResult.envelope.forced || testResult.envelope.bounce
+              }}<span v-if="testResult.envelope.forced"> (forced by the host)</span>
+            </dd>
+          </dl>
+          <p v-if="testResult.sent" class="mt-2 text-muted-foreground">
+            If nothing arrives, the From domain above is the first thing to check: the receiving
+            server drops mail whose SPF record does not authorise this host, and it does so
+            silently. A subdomain with no SPF record of its own is the usual culprit — set the
+            address to a mailbox on a domain this server is allowed to send for.
+          </p>
+        </div>
       </form>
 
       <div class="px-1 pb-1">

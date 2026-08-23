@@ -18,14 +18,28 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ApiError, api } from '@/lib/api'
+import { useSessionStore } from '@/stores/session'
 
-  'password passw0rd password1 letmein welcome qwerty qwertyuiop azerty 123456 1234567 12345678 123456789 1234567890 111111 000000 abc123 monkey dragon sunshine princess football baseball iloveyou admin administrator root login master shadow superman batman starwars trustno1 whatever freedom hunter ninja passwort'.split(
-    ' ',
-  )
-
+const session = useSessionStore()
 const route = useRoute()
 
-const token = computed(() => (typeof route.query.token === 'string' ? route.query.token : ''))
+/**
+ * The token can arrive under either name.
+ *
+ * The emails send `?t=` — short, because mail clients wrap long links and every
+ * character counts against that. `?token=` is accepted too so a link somebody
+ * assembled by hand, or one from an older release, still works.
+ */
+function tokenFromQuery(query: typeof route.query): string {
+  for (const key of ['t', 'token']) {
+    const value = query[key]
+    const first = Array.isArray(value) ? value[0] : value
+    if (typeof first === 'string' && first.trim()) return first.trim()
+  }
+  return ''
+}
+
+const token = computed(() => tokenFromQuery(route.query))
 const password = ref('')
 const revealed = ref(false)
 
@@ -34,7 +48,9 @@ const done = ref(false)
 const formError = ref('')
 const fieldErrors = ref<Record<string, string>>({})
 
-const strength = computed(() => scorePassword(password.value))
+const strength = computed(() =>
+  scorePassword(password.value, { minLength: session.minPasswordLength }),
+)
 
 const meterClass = computed(() => {
   if (strength.value.score <= 1) return 'bg-destructive'

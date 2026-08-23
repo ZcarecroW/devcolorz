@@ -24,6 +24,10 @@ function registerMetaRoutes(Router $router): void
                 'anonymous'    => Settings::bool('site.allowAnonymous', true),
                 'captcha'      => Captcha::enabled(),
                 'inviteOnly'   => Settings::bool('auth.inviteRequired', true),
+                // The sign-up form promises a confirmation email on success.
+                // When verification is off no email is sent and the account is
+                // live immediately, so the client has to know which it is.
+                'emailVerification' => Settings::bool('auth.requireEmailVerification', true),
             ],
             'captcha' => [
                 'provider' => Captcha::enabled() ? 'hcaptcha' : null,
@@ -32,6 +36,9 @@ function registerMetaRoutes(Router $router): void
             'limits' => [
                 'maxColors'   => Settings::int('content.maxColors', 40),
                 'maxPalettes' => Settings::int('content.maxPalettesPerUser', 0) ?: null,
+                // Mirrors Validator::password(), including its floor of 8, so
+                // the meter on the form and the check on the server agree.
+                'minPasswordLength' => max(8, Settings::int('auth.minPasswordLength', 12)),
             ],
             'defaults' => [
                 'appearance'     => Settings::str('site.defaultAppearance', 'system'),
@@ -45,11 +52,15 @@ function registerMetaRoutes(Router $router): void
 
         if (Auth::isAdmin()) {
             $lastCron = Db::value("SELECT MAX(started_at) FROM cron_runs WHERE ok = 1");
+            // The stored verdict, not a fresh probe: probing here made six
+            // serial loopback requests part of the first call the SPA makes.
+            $exposure = SelfTest::exposureStatus();
             $payload['health'] = [
-                'wal'             => Db::isWal(),
-                'cronLastRun'     => $lastCron === null ? null : (int) $lastCron,
-                'outboxQueued'    => (int) Db::value("SELECT COUNT(*) FROM mail_outbox WHERE status = 'queued'"),
-                'storageExposed'  => SelfTest::storageReachable(),
+                'wal'                => Db::isWal(),
+                'cronLastRun'        => $lastCron === null ? null : (int) $lastCron,
+                'outboxQueued'       => (int) Db::value("SELECT COUNT(*) FROM mail_outbox WHERE status = 'queued'"),
+                'storageExposed'     => $exposure['exposed'],
+                'storageCheckedAt'   => $exposure['checkedAt'] ?: null,
             ];
         }
 

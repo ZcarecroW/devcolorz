@@ -476,6 +476,7 @@ watchDebounced(colorKey, () => void fetchName(), { debounce: 220 })
               class="w-full rounded-md border bg-background px-2.5 py-1.5 font-mono text-xs tabular-nums focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               :class="textInvalid && 'border-destructive'"
               :aria-invalid="textInvalid || undefined"
+              :aria-describedby="textInvalid ? 'adjust-value-error' : undefined"
               spellcheck="false"
               autocomplete="off"
               placeholder="#3b82f6, oklch(62% 0.21 259), rebeccapurple…"
@@ -483,7 +484,12 @@ watchDebounced(colorKey, () => void fetchName(), { debounce: 220 })
               @blur="onTextBlur"
               @keydown.enter.prevent="applyText"
             />
-            <p v-if="textInvalid" class="text-[11px] text-destructive">
+            <!--
+              `role=alert` and an id: pressing Enter on an unparseable value
+              changed nothing on screen except this line, which was announced
+              to nobody and pointed at by nothing.
+            -->
+            <p v-if="textInvalid" id="adjust-value-error" role="alert" class="text-[11px] text-destructive">
               Not a color this parser recognises. Check the syntax and try again.
             </p>
           </div>

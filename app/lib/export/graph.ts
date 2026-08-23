@@ -49,6 +49,13 @@ export interface TokenGraph {
   config: ExportConfig
   /** Title of the palette, used in file headers. */
   title: string
+  /**
+   * Tokens whose emitted name collided with an earlier one and were renamed.
+   *
+   * Surfaced so the panel can say so: a silent rename is only marginally
+   * better than a silent overwrite.
+   */
+  renames: Array<{ from: string; to: string }>
 }
 
 /* ------------------------------------------------------------------ *
@@ -93,7 +100,17 @@ export function composeName(config: ExportConfig, stem: string, ...parts: string
       if (piece && segments[segments.length - 1] !== piece) segments.push(piece)
     }
   }
-  return applyCase(segments.join('-'), config.case)
+  const joined = segments.join('-')
+  /*
+   * A leading digit is legal in a CSS custom property and illegal almost
+   * everywhere else. With the prefix cleared — which the panel offers — a
+   * swatch called "1st accent" emitted `--1st-accent`, which looked fine, and
+   * `$1st-accent`, `@1st-accent`, `val 1stAccent` and an Android resource
+   * named `1st_accent`, none of which compile. One `n` here fixes every
+   * emitter at once rather than each of them separately.
+   */
+  const safe = /^\d/.test(joined) ? `n${joined}` : joined
+  return applyCase(safe || config.fallbackStem, config.case)
 }
 
 /**
@@ -103,12 +120,27 @@ export function composeName(config: ExportConfig, stem: string, ...parts: string
  * one would silently win, which is the kind of bug that survives to production.
  */
 export function stemsFor(swatches: Swatch[], config: ExportConfig): string[] {
+  /*
+   * The fallback number is the swatch's position in the *palette*, not in the
+   * surviving list. Numbering after the exclusion filter meant that hiding one
+   * unnamed colour renumbered every colour after it: what a stylesheet knew as
+   * `color-3` silently became `color-2` and every rule using it resolved to a
+   * different colour, with no name change to notice. Excluding leaves a gap in
+   * the sequence now, which is the honest signal.
+   *
+   * Dedup then runs over the surviving labels only, so an excluded swatch
+   * cannot consume a slug and leave a lone "Blue" emitting `blue-2`.
+   */
+  const excluded = swatches.map((swatch) => Boolean(config.overrides[swatch.id]?.exclude))
   const labels = swatches.map((swatch, index) => {
     const override = config.overrides[swatch.id]?.name
     const source = override ?? (config.useNames ? swatch.name : '')
     return source?.trim() ? source : `${config.fallbackStem}-${index + 1}`
   })
-  return uniqueSlugs(labels)
+
+  const survivors = uniqueSlugs(labels.filter((_, index) => !excluded[index]))
+  let next = 0
+  return labels.map((label, index) => (excluded[index] ? slugify(label) : survivors[next++]))
 }
 
 /* ------------------------------------------------------------------ *
@@ -117,6 +149,14 @@ export function stemsFor(swatches: Swatch[], config: ExportConfig): string[] {
 
 const WHITE: Oklch = { mode: 'oklch', l: 1, c: 0, h: 0 }
 const BLACK: Oklch = { mode: 'oklch', l: 0, c: 0, h: 0 }
+/**
+ * The surface the dark half of an export is assumed to sit on.
+ *
+ * Matches the dark background the inversion strategies solve against, so an
+ * overlay or a solved-alpha token is derived from the same assumption in both
+ * modes rather than from white in one and the brand colour in the other.
+ */
+const DARK_SURFACE: Oklch = { mode: 'oklch', l: 0.145, c: 0, h: 0 }
 
 function metaFor(color: Oklch): TokenMeta {
   return {
@@ -161,11 +201,11 @@ export function buildGraph(
   config: ExportConfig,
   title = 'Palette',
 ): TokenGraph {
-  const included = swatches.filter((s) => !config.overrides[s.id]?.exclude)
-  const stems = stemsFor(included, config)
+  const stems = stemsFor(swatches, config)
 
-  const ordered = included
+  const ordered = swatches
     .map((swatch, index) => ({ swatch, stem: stems[index] }))
+    .filter(({ swatch }) => !config.overrides[swatch.id]?.exclude)
     .sort((a, b) => {
       if (config.sortBy === 'name') return a.stem.localeCompare(b.stem)
       if (config.sortBy === 'lightness') return (b.swatch.color.l ?? 0) - (a.swatch.color.l ?? 0)
@@ -222,41 +262,86 @@ export function buildGraph(
 
     if (wantsAlpha(swatch.id, config)) {
       const fractions = config.alphaSteps.map((step) => step / 100)
-      const variants =
-        config.alphaMode === 'overlay'
-          ? overlayLadder(swatch.color, fractions)
-          : config.alphaMode === 'solved'
-            ? fractions.map((alpha) => {
-                // Solve against the colour composited over white at this
-                // opacity, so the alpha token reproduces the flat tint you
-                // would have got — but keeps working over any background.
-                const target: Oklch = {
-                  mode: 'oklch',
-                  l: (swatch.color.l ?? 0) * alpha + 1 * (1 - alpha),
-                  c: (swatch.color.c ?? 0) * alpha,
-                  h: swatch.color.h ?? 0,
-                }
-                const solved = solveAlpha(target, WHITE)
-                return { alpha: solved.alpha, color: solved.color, step: String(Math.round(alpha * 100)) }
-              })
-            : alphaLadder(swatch.color, fractions)
 
-      for (const variant of variants) {
+      /**
+       * Build one ladder against a given surface.
+       *
+       * Both modes are surface-relative, which is exactly why the dark set has
+       * to be *recomputed* rather than have the light alphas copied onto the
+       * inverted colour. A neutral overlay for a light surface is black; the
+       * old code emitted that same black scrim's alpha carried on the dark
+       * brand colour, so a scrim that was a neutral wash in light mode became
+       * a translucent purple one at night. Solved alpha had the same problem:
+       * it was solved against white and then shown over a dark surface.
+       */
+      const ladderFor = (color: Oklch, surface: Oklch) => {
+        if (config.alphaMode === 'overlay') return overlayLadder(surface, fractions)
+        if (config.alphaMode === 'solved') {
+          return fractions.map((alpha) => {
+            // Solve against the colour composited over the surface at this
+            // opacity, so the alpha token reproduces the flat tint you would
+            // have got — but keeps working over any background.
+            const target: Oklch = {
+              mode: 'oklch',
+              l: (color.l ?? 0) * alpha + (surface.l ?? 1) * (1 - alpha),
+              c: (color.c ?? 0) * alpha,
+              h: color.h ?? 0,
+            }
+            const solved = solveAlpha(target, surface)
+            return { alpha: solved.alpha, color: solved.color, step: String(Math.round(alpha * 100)) }
+          })
+        }
+        return alphaLadder(color, fractions)
+      }
+
+      const variants = ladderFor(swatch.color, WHITE)
+      const darkVariants = emitDark && dark ? ladderFor(dark, DARK_SURFACE) : null
+
+      variants.forEach((variant, index) => {
         tokens.push({
           id: `${stem}-a${variant.step}`,
           name: composeName(config, stem, `a${variant.step}`),
           kind: 'alpha',
           light: variant.color,
-          dark: emitDark && dark ? { ...dark, alpha: variant.color.alpha } : null,
+          dark: darkVariants?.[index]?.color ?? null,
           sourceId: swatch.id,
           comment: `${variant.step}% opacity`,
           meta: metaFor(variant.color),
         })
-      }
+      })
     }
   }
 
-  return { tokens, hasDark, config, title }
+  /*
+   * Last word on uniqueness.
+   *
+   * Stems are deduplicated before expansion, but expansion invents names of
+   * its own: a swatch called "Blue 500" and the 500 step of a swatch called
+   * "Blue" both land on `--color-blue-500`. CSS takes the last one and drops
+   * the other silently, so one colour was missing from the export and another
+   * was wrong. What each token expands into depends on its own overrides, the
+   * scale preset and the alpha steps, so the only place this can be settled is
+   * here, once the names actually exist.
+   */
+  const seen = new Set<string>()
+  const renames: Array<{ from: string; to: string }> = []
+  for (const token of tokens) {
+    if (!seen.has(token.name)) {
+      seen.add(token.name)
+      continue
+    }
+    const from = token.name
+    let attempt = 2
+    // The suffix has to be re-checked: `-2` may itself be a real scale step.
+    let next = composeName(config, token.id, String(attempt))
+    while (seen.has(next)) next = composeName(config, token.id, String(++attempt))
+    seen.add(next)
+    token.name = next
+    token.id = `${token.id}-${attempt}`
+    renames.push({ from, to: next })
+  }
+
+  return { tokens, hasDark, config, title, renames }
 }
 
 /** Group tokens by the swatch they came from — used by several emitters. */

@@ -24,6 +24,9 @@ namespace DevColorz;
  */
 final class Mail
 {
+    /** The reason the most recent `send()` failed, for the diagnostics screen. */
+    private static string $lastError = '';
+
     /**
      * Queue a message.
      *
@@ -115,11 +118,17 @@ final class Mail
                 continue;
             }
 
+            if ($error === '') {
+                $error = self::lastError();
+            }
             $attempts = (int) $row['attempts'] + 1;
             // 1m, 5m, 30m, 2h, 12h — then give up and let a human look at it.
+            // `>` not `>=`: the old comparison marked the row dead on the fifth
+            // failure, so the 12-hour step was never used and an MTA that was
+            // down for an afternoon lost every message queued during it.
             $backoff = [60, 300, 1800, 7200, 43200];
             $failed++;
-            if ($attempts >= count($backoff)) {
+            if ($attempts > count($backoff)) {
                 Db::run("UPDATE mail_outbox SET status = 'dead', attempts = ?, last_error = ? WHERE id = ?", [
                     $attempts,
                     $error !== '' ? $error : 'Delivery refused by the mail transport agent.',
@@ -197,9 +206,65 @@ final class Mail
         // Validated above, so escapeshellarg has nothing dangerous to escape —
         // but the parameter still goes through it, because "validated" and
         // "safe to concatenate into a command line" are different claims.
-        $params = '-f' . $bounce;
+        $params = '-f' . escapeshellarg($bounce);
 
-        return @mail($to, $encodedSubject, $body, $headers, $params);
+        // A host that pins the envelope sender ignores ours anyway, and on some
+        // of them passing one at all makes mail() fail outright rather than be
+        // overridden. Send without it when the host has made the choice for us.
+        if ((string) ini_get('mail.force_extra_parameters') !== '') {
+            $params = '';
+        }
+
+        self::$lastError = '';
+        // Without this, a warning raised anywhere earlier in the request would
+        // be picked up below and reported as the reason this message failed.
+        error_clear_last();
+        $ok = @mail($to, $encodedSubject, $body, $headers, $params);
+        if (!$ok) {
+            $last = error_get_last();
+            self::$lastError = is_array($last) && isset($last['message'])
+                ? (string) $last['message']
+                : 'mail() returned false; the local mail transport agent refused the message.';
+        }
+        return $ok;
+    }
+
+    /**
+     * Why the last `send()` failed.
+     *
+     * `mail()` reports failure as a bare `false` and puts the reason — if there
+     * is one — in the last PHP warning, which the `@` has already suppressed.
+     * Capturing it here is what lets the administrator see "sendmail: not
+     * found" instead of "delivery refused".
+     */
+    public static function lastError(): string
+    {
+        return self::$lastError;
+    }
+
+    /**
+     * What the envelope will look like, for the diagnostics screen.
+     *
+     * A message `mail()` accepted can still vanish, and the usual reason is
+     * this triple: a From domain the sending host is not authorised for fails
+     * SPF and DMARC at the receiver, which drops it silently.
+     *
+     * @return array{from: string, fromName: string, bounce: string, forced: string, available: bool}
+     */
+    public static function envelope(): array
+    {
+        $from = self::fromAddress();
+        $bounce = Settings::str('mail.bounceAddress');
+        if ($bounce === '' || !filter_var($bounce, FILTER_VALIDATE_EMAIL)) {
+            $bounce = $from;
+        }
+        return [
+            'from'      => $from,
+            'fromName'  => Settings::str('mail.fromName', 'DevColorz'),
+            'bounce'    => $bounce,
+            'forced'    => (string) ini_get('mail.force_extra_parameters'),
+            'available' => function_exists('mail'),
+        ];
     }
 
     private static function fromAddress(): string
@@ -284,6 +349,27 @@ final class Mail
             . "Until you confirm, the old address stays active. The link expires in 24 hours.\n";
 
         Mail::queue($newEmail, Settings::str('mail.subjectChange', 'Confirm your new email address'), $text);
+    }
+
+    /**
+     * Tell an account holder that someone tried to sign up as them.
+     *
+     * The registration endpoint answers identically whether or not the address
+     * is taken, so this is the only channel that can say anything at all — and
+     * it says it to the one person entitled to know.
+     */
+    public static function sendRegistrationAttempt(string $email, string $displayName): void
+    {
+        $site = Settings::str('site.name', 'DevColorz');
+        $text = 'Hello' . ($displayName !== '' ? " $displayName" : '') . ",\n\n"
+            . "Someone just tried to create a $site account with this address, which already "
+            . "has one. No second account was created and nothing about yours has changed.\n\n"
+            . 'If it was you, sign in instead at ' . Http::baseUrl() . "/#/login — or reset your "
+            . 'password at ' . Http::baseUrl() . "/#/forgot if you cannot get in.\n\n"
+            . "If it was not you, there is nothing to do. Whoever made the request cannot see "
+            . "this message and learned nothing about your account.\n";
+
+        Mail::queue($email, "Someone tried to register your $site address", $text);
     }
 
     public static function sendPasswordChangedNotice(string $email): void

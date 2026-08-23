@@ -104,6 +104,34 @@ final class SelfTest
                     . '. Account confirmation and password resets will not work.',
         ];
 
+        /*
+         * The single most common reason a message that "sent" never arrives.
+         *
+         * `mail()` returning true means the local transport accepted it. What
+         * decides whether it is delivered is whether the receiving server
+         * believes this host is allowed to send for the From domain, and that
+         * is an SPF record. A subdomain does not inherit its parent's — mail
+         * from `noreply@app.example.com` is checked against
+         * `app.example.com`, which usually has no record at all, and modern
+         * receivers drop unauthenticated mail without a bounce. There is
+         * nothing in the application that can detect this after the fact,
+         * which is exactly why it belongs in the checks.
+         */
+        $envelope = Mail::envelope();
+        $fromDomain = strtolower(substr(strrchr($envelope['from'], '@') ?: '@', 1));
+        $spf = self::hasSpf($fromDomain);
+        $checks[] = [
+            'id'       => 'mail_spf',
+            'label'    => 'Sender domain is authorized to send',
+            'required' => false,
+            'ok'       => $spf !== false,
+            'detail'   => match ($spf) {
+                true  => $fromDomain . ' publishes an SPF record, so a receiving server can check that this host is allowed to send for it.',
+                false => $fromDomain . ' publishes no SPF record. Mail from this address will be accepted here and quietly dropped by many receivers — this is the usual reason a test "succeeds" and nothing arrives. Either publish SPF for that name, or set the From address in Settings to a mailbox on a domain that already has one.',
+                default => 'Could not look up DNS for ' . $fromDomain . ', so this could not be checked. Confirm by hand that the domain publishes an SPF record.',
+            },
+        ];
+
         $https = ($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? '') !== 'off';
         $checks[] = [
             'id'     => 'https',
@@ -174,9 +202,12 @@ final class SelfTest
      *
      * @return list<array{id: string, label: string, ok: bool, required: bool, detail: string}>
      */
-    public static function exposure(): array
+    public static function exposure(?float $deadline = null): array
     {
-        $base = Http::selfOrigin();
+        // `baseUrl()` rather than the request host: this also runs from cron,
+        // and a CLI invocation has no HTTP_HOST at all — it would have probed
+        // http://localhost and recorded a meaningless verdict.
+        $base = Http::baseUrl();
         $dbFile = Config::string('db_file');
 
         $targets = [
@@ -194,7 +225,12 @@ final class SelfTest
                 continue;
             }
             [$path, $label] = $target;
-            $status = self::probe($base . $path);
+            // Out of time reports the remaining targets as *unchecked* rather
+            // than dropping them. Dropping them would leave a shorter list in
+            // which nothing failed, and `refreshExposure` would read that as a
+            // clean bill of health for probes that never ran.
+            $outOfTime = $deadline !== null && microtime(true) > $deadline;
+            $status = $outOfTime ? 0 : self::probe($base . $path);
             // A 000 means the loopback request itself failed, which we report
             // as inconclusive rather than pretending it passed.
             $ok = $status !== 200;
@@ -213,21 +249,92 @@ final class SelfTest
         return $results;
     }
 
-    /** True when anything sensitive is reachable — surfaced as an admin alarm. */
-    public static function storageReachable(): bool
+    /**
+     * Whether anything sensitive is reachable — surfaced as an admin alarm.
+     *
+     * Answers from the stored result of the last real probe. The probe makes
+     * six serial loopback HTTP requests, and this is called from `/meta`, the
+     * first thing the SPA asks for: every admin page load paid for six
+     * round-trips before anything rendered, and on a host whose loopback is
+     * firewalled it paid the full connect timeout on each of them — six times
+     * three seconds, on every reload.
+     *
+     * Tri-state on purpose. A failed probe is not a passed one, and reporting
+     * "not exposed" for an installation that was never actually checked is the
+     * more dangerous of the two wrong answers.
+     *
+     * @return array{exposed: bool|null, checkedAt: int}
+     */
+    public static function exposureStatus(): array
     {
-        if (isset(self::$cache['exposed'])) {
-            return self::$cache['exposed'];
+        $stored = Settings::get('selftest.exposure');
+        if (is_array($stored) && array_key_exists('exposed', $stored)) {
+            return [
+                'exposed'   => is_bool($stored['exposed']) ? $stored['exposed'] : null,
+                'checkedAt' => (int) ($stored['checkedAt'] ?? 0),
+            ];
         }
+        return ['exposed' => null, 'checkedAt' => 0];
+    }
+
+    /**
+     * Store the verdict from a set of exposure checks.
+     *
+     * Takes the checks rather than running them, so a caller that already has
+     * them does not pay for a second round of loopback requests.
+     *
+     * @param list<array{id: string, label: string, ok: bool, required: bool, detail: string}>|null $checks
+     * @return array{exposed: bool|null, checkedAt: int}
+     */
+    public static function refreshExposure(?array $checks = null): array
+    {
         $exposed = false;
-        foreach (self::exposure() as $check) {
+        $conclusive = true;
+        foreach ($checks ?? self::exposure() as $check) {
+            if (str_contains($check['detail'], 'Could not complete a loopback request')) {
+                $conclusive = false;
+                continue;
+            }
             if (!$check['ok']) {
                 $exposed = true;
-                break;
             }
         }
-        self::$cache = ['exposed' => $exposed];
-        return $exposed;
+        $status = [
+            'exposed'   => $conclusive ? $exposed : ($exposed ? true : null),
+            'checkedAt' => time(),
+        ];
+        Settings::set('selftest.exposure', $status);
+        return $status;
+    }
+
+    /** True when anything sensitive is known to be reachable. */
+    public static function storageReachable(): bool
+    {
+        return self::exposureStatus()['exposed'] === true;
+    }
+
+    /**
+     * Does this domain publish an SPF record?
+     *
+     * Null when DNS could not be consulted at all, which is a different answer
+     * from "no" and is reported as such.
+     */
+    private static function hasSpf(string $domain): ?bool
+    {
+        if ($domain === '' || !function_exists('dns_get_record')) {
+            return null;
+        }
+        $records = @dns_get_record($domain, DNS_TXT);
+        if (!is_array($records)) {
+            return null;
+        }
+        foreach ($records as $record) {
+            $txt = (string) ($record['txt'] ?? '');
+            if (stripos($txt, 'v=spf1') === 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** HTTP status of a URL, or 0 if the request could not be made. */

@@ -17,6 +17,10 @@ import {
   SquareStack,
   Link2,
   Minus,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   Redo2,
   Repeat,
@@ -49,7 +53,16 @@ import { MAX_SWATCHES, MIN_SWATCHES, usePaletteStore, type SortKey } from '@/sto
 import { useStudioStore } from '@/stores/studio'
 import type { ColorFormat } from '@/lib/color/types'
 
-const emit = defineEmits<{ copyLink: [] }>()
+const emit = defineEmits<{ copyLink: []; togglePanel: ['left' | 'right'] }>()
+
+/**
+ * The panels' effective state, not the stored preference.
+ *
+ * Below `lg` they are sheets whose state the page keeps locally, so the
+ * toolbar has to be told rather than read the store — otherwise the button
+ * shows one thing and does another on a phone.
+ */
+const props = defineProps<{ leftOpen: boolean; rightOpen: boolean }>()
 
 const palette = usePaletteStore()
 const studio = useStudioStore()
@@ -91,6 +104,28 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
 <template>
   <header class="shrink-0 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
     <div class="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 xl:flex-nowrap">
+      <!--
+        Panel handles.
+
+        They were pinned to the corners of the swatch strip, directly over the
+        first swatch's drag grip and the last one's remove button, and being
+        the higher layer they took both clicks. Here they are never over
+        anything, and on a narrow screen — where the panels are sheets over the
+        palette — they stay reachable while a sheet is open.
+      -->
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class="shrink-0"
+        :aria-label="props.leftOpen ? 'Hide the controls' : 'Show the controls'"
+        :title="props.leftOpen ? 'Hide the controls' : 'Show the controls'"
+        :aria-pressed="props.leftOpen"
+        @click="emit('togglePanel', 'left')"
+      >
+        <PanelLeftClose v-if="props.leftOpen" />
+        <PanelLeftOpen v-else />
+      </Button>
+
       <!-- Title -->
       <input
         v-model="palette.title"
@@ -313,6 +348,17 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
           wide
           text="The whole palette is packed into the URL fragment — colors, locks and names. Nothing is uploaded and no account is involved, so the link works forever and reveals nothing to the server. The cost is length: a twenty-color palette makes a long URL."
         />
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          :aria-label="props.rightOpen ? 'Hide the previews' : 'Show the previews'"
+          :title="props.rightOpen ? 'Hide the previews' : 'Show the previews'"
+          :aria-pressed="props.rightOpen"
+          @click="emit('togglePanel', 'right')"
+        >
+          <PanelRightClose v-if="props.rightOpen" />
+          <PanelRightOpen v-else />
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"

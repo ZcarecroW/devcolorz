@@ -165,6 +165,25 @@ function purposeOf(stop: ScaleStop): string {
   return stop.purpose || describeColor(stop.color)
 }
 
+/**
+ * What a row says when you hover it.
+ *
+ * The purpose column is the first thing to lose room in a 22rem panel, so at
+ * the widths this panel actually gets it is always ellipsed. The text is the
+ * only thing that says what a step is *for*, so it has to stay reachable —
+ * and the tooltip carries the numbers beside it rather than making the reader
+ * correlate three truncated columns by eye.
+ */
+function rowTitle(stop: ScaleStop, purpose: string): string {
+  const target = stop.meetsTarget ? 'Meets its target.' : 'Under its target.'
+  // The APCA verdict is already a sentence; the WCAG one is a grade. Trimming
+  // the trailing stop keeps both from colliding with the one added here.
+  const level = levelLabel(stop.contrast).replace(/\.$/, '')
+  return `${stop.key} · ${purpose}
+${formatColor(stop.color, studio.format)}
+${contrastLabel(stop.contrast)} on white — ${level}. ${target}`
+}
+
 /* ---------------- actions ---------------- */
 
 const copied = ref('')
@@ -442,7 +461,7 @@ function replacePalette() {
           <InfoHint
             title="Reading the ramp"
             wide
-            text="Contrast is measured against white, in the metric selected above. The badge compares each step against the target ladder its preset implies — the WCAG ratios a Tailwind or Radix scale is built to hit — so it answers 'is this step dark enough for the job its number claims'. That ladder stays in WCAG ratios even when the numbers are reported in Lc, so read the badges as a WCAG check. Click any step to copy it in the studio's current format."
+            text="Contrast is measured against white, in the metric selected above. The badge compares each step against the target ladder its preset implies — the contrast a Tailwind or Radix scale is built to hit at each step — so it answers 'is this step dark enough for the job its number claims'. The ladder is expressed in whichever metric you have selected: WCAG ratios for WCAG, Lc values for APCA, so the badge always answers in the units on screen. Click any step to copy it in the studio's current format."
           />
         </Label>
         <span class="flex-1" />
@@ -460,7 +479,8 @@ function replacePalette() {
           <button
             type="button"
             class="group/step flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            :aria-label="`Copy step ${stop.key}`"
+            :aria-label="`Copy step ${stop.key}: ${purposeOf(stop)}`"
+            :title="rowTitle(stop, purposeOf(stop))"
             @click="copyStop('scale', stop)"
           >
             <span
@@ -559,7 +579,8 @@ function replacePalette() {
           <button
             type="button"
             class="group/neutral flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            :aria-label="`Copy neutral step ${stop.key}`"
+            :aria-label="`Copy neutral step ${stop.key}: ${describeColor(stop.color)}`"
+            :title="rowTitle(stop, describeColor(stop.color))"
             @click="copyStop('neutral', stop)"
           >
             <span

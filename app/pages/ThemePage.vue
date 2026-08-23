@@ -188,7 +188,12 @@ function generateFromPalette() {
     foreground: fmt(roles.text.color),
     card: fmt(roles.surface.color),
     'card-foreground': fmt(roles.text.color),
-    popover: fmt(roles.overlay.color),
+    // `surface`, not `overlay`. The overlay role is the modal scrim — pure
+    // black at 45% alpha — so writing it here made every dropdown, tooltip and
+    // command palette a translucent black sheet with the palette's near-black
+    // ink on top of it. A popover is a raised card, and that is what `card`
+    // uses too.
+    popover: fmt(roles.surface.color),
     'popover-foreground': fmt(roles.text.color),
     primary: fmt(roles.primary.color),
     'primary-foreground': fmt(roles.textOnPrimary.color),
@@ -219,25 +224,38 @@ function generateFromPalette() {
     'shadow-color': fmt(roles.text.color),
   }
 
+  /**
+   * Repair label/fill pairs that do not read.
+   *
+   * `toDark` moves each colour on its own, so a label and its fill can drift
+   * together in the dark set — but the light set needs the same pass: a
+   * palette whose ink happens to sit close to one of its own surfaces ships an
+   * unreadable pair straight out of the generator. Only the pairs that
+   * actually broke are touched, rather than re-deriving every foreground and
+   * losing the palette's hues.
+   */
+  const repair = (values: TokenValues) => {
+    for (const token of COLOR_TOKENS) {
+      if (!token.contrastAgainst || !token.key.endsWith('foreground')) continue
+      const foreground = parseColor(values[token.key] ?? '')
+      const background = parseColor(values[token.contrastAgainst] ?? '')
+      if (!foreground || !background || Math.abs(apca(foreground, background)) >= 60) continue
+      values[token.key] = fmt(
+        makeReadable(foreground, background, { target: 75, metric: 'apca' }) ??
+          bestBlackOrWhite(background),
+      )
+    }
+  }
+  // Light is repaired before the dark set is derived from it, so a pair that
+  // was already wrong is not carried across and re-solved twice.
+  repair(light)
+
   const dark: TokenValues = {}
   for (const token of COLOR_TOKENS) {
     const parsed = parseColor(light[token.key] ?? '')
     if (parsed) dark[token.key] = fmt(toDark(parsed))
   }
-
-  // `toDark` moves each colour on its own, so a label and its fill can drift
-  // together in the dark set. Repair only the pairs that actually broke,
-  // rather than re-deriving every foreground and losing the palette's hues.
-  for (const token of COLOR_TOKENS) {
-    if (!token.contrastAgainst || !token.key.endsWith('foreground')) continue
-    const foreground = parseColor(dark[token.key] ?? '')
-    const background = parseColor(dark[token.contrastAgainst] ?? '')
-    if (!foreground || !background || Math.abs(apca(foreground, background)) >= 60) continue
-    dark[token.key] = fmt(
-      makeReadable(foreground, background, { target: 75, metric: 'apca' }) ??
-        bestBlackOrWhite(background),
-    )
-  }
+  repair(dark)
 
   // Shadows come from the light source, not the theme. Inverting the shadow
   // colour in dark mode produces a glow, which is not what anyone wants.

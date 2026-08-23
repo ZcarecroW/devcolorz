@@ -154,12 +154,18 @@ final class Auth
      * measurably faster than one that does, which enumerates the user list
      * regardless of how carefully the response bodies are matched.
      */
+    /**
+     * Spend what a real password check spends, against nothing.
+     *
+     * Exactly one KDF pass. Hashing a dummy here and then verifying it cost
+     * two, so a sign-in for an address that does not exist took roughly twice
+     * as long as one for an address that does — the opposite of the leak this
+     * is meant to close, but a leak all the same. The dummy is computed once
+     * per installation and kept, so it carries this host's own cost
+     * parameters and the timings actually match.
+     */
     public static function fakePasswordCheck(): void
     {
-        static $dummy = null;
-        if ($dummy === null) {
-            $dummy = Security::hashPassword('devcolorz-timing-equaliser');
-        }
-        Security::verifyPassword('not-the-password', $dummy);
+        Security::verifyPassword('not-the-password', Security::dummyHash());
     }
 }

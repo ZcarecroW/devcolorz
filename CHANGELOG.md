@@ -1,5 +1,61 @@
 # Changelog
 
+## 1.1.0 — 2026-08-23
+
+A bug-fix pass over the whole project, starting from six reports and ending
+with eighty-odd fixes. Nothing here changes what the app is for.
+
+**Studio** — toasts had no stylesheet, so they rendered unpositioned and behind
+any open dialog. The controls panel lost its bottom padding to an overflowing
+box, and its tab bar came unstuck partway down a long panel. Expanding Export's
+"Per color" made the page scrollable into two thousand pixels of nothing: an
+`.sr-only` label with no positioned ancestor escaped the panel and dragged the
+document's height with it. Below 1024px the controls covered the whole studio
+with no way to dismiss them; both panels are sheets there now, with a backdrop,
+and the panel toggles moved into the toolbar, off the swatch buttons they were
+sitting on.
+
+**Accounts** — the sign-up form asked for an invitation code whether or not the
+instance wanted one, the password meter used a different minimum from the
+server, and the confirmation and reset links carried a parameter neither page
+read. Route metadata (`requiresAuth`, `requiresAdmin`, `guestOnly`) is now
+enforced by a guard instead of being decorative.
+
+**Colour engine** — harmonies emitted duplicate colours at the default palette
+size; the Radix and Material dark-mode curves put ramp steps out of order or
+collapsed several onto one value; Material tone keys ran backwards; and the
+chart-series extension produced identical greys for an achromatic palette.
+
+**Export** — the "media query + class override" delivery emitted a light rule
+that outranked the dark one, making the media query dead CSS. Two colours could
+compose to the same variable and silently overwrite each other. Excluding a
+colour renumbered every unnamed colour after it. The Tailwind emitters wrote
+the prefix twice or threw outright; the SVG sheet drew every label in a shade
+of its own tile; and a palette title containing `&`, `<` or `*/` broke the file
+it landed in.
+
+**Theme editor** — "Generate from the current palette" wrote the modal scrim
+into `--popover`, turning every dropdown and tooltip in the app into a
+translucent black slab with near-black text.
+
+**Server** — searches containing `_` or `%` silently returned nothing.
+Migrations only ran from cron, so an upgrade served 500s until the scheduler
+fired. `/meta` ran six loopback HTTP requests for every admin page load. The
+trending job used an optional SQLite function and threw on every run where it
+was absent. Behind a TLS-terminating proxy the session cookie lost `Secure` and
+every write failed the Origin check. The audit log was never pruned and the
+nightly backup deleted manual snapshots.
+
+**Mail** — a message `mail()` accepted but nothing delivered now has a
+diagnosis: the self-test checks whether the sender's domain publishes SPF, and
+the test-send reports the actual result and the envelope it used.
+
+**Build** — the release tree lost its README, LICENCE and third-party notices
+on every bundle; the CSP blocked the app's own pre-paint theme script; a
+blanket `Require all granted` in `api/.htaccess` cancelled the deny rules
+protecting the library and route files; and the FTPS deploy accepted any
+certificate.
+
 ## 1.0.0
 
 First public release.

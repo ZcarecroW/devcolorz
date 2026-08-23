@@ -7,7 +7,7 @@
  * near-black — the failure mode that makes most palette tools unusable at the
  * extremes.
  */
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import {
   Check,
   Copy,
@@ -97,12 +97,10 @@ const nameClass = computed(() =>
 const labelClass = computed(() => {
   switch (layout.value) {
     case 'row':
-      // The first row starts clear of the panel-collapse button, which is
-      // overlaid on the strip's top-left corner and would otherwise sit on top
-      // of the hex value.
-      return props.index === 0
-        ? 'flex-row items-center gap-3 py-2 pr-28 pl-12'
-        : 'flex-row items-center gap-3 py-2 pr-28 pl-4'
+      // Every row is indented the same: the panel-collapse button that the
+      // first row used to make space for now lives in the toolbar, where it is
+      // not on top of anything.
+      return 'flex-row items-center gap-3 py-2 pr-28 pl-4'
     case 'tile':
       return 'items-center gap-0.5 p-2 text-center'
     case 'card':
@@ -155,14 +153,32 @@ async function copy() {
 const editing = ref(false)
 const draftName = ref('')
 
+const nameButton = ref<HTMLButtonElement | null>(null)
+
 function startRename() {
   draftName.value = props.swatch.name || label.value
   editing.value = true
 }
 
-function commitRename() {
+/**
+ * Finish renaming and put focus back where it came from.
+ *
+ * `editing` swaps the input for a button, so the element that had focus stops
+ * existing and the browser drops focus on `<body>` — a keyboard user who
+ * pressed Enter or Escape landed at the top of the document and had to tab all
+ * the way back. Deliberately not applied when the input lost focus on its own:
+ * the user is already somewhere else by then.
+ */
+function endRename(restoreFocus: boolean) {
   editing.value = false
-  if (draftName.value.trim() !== props.swatch.name) emit('rename', draftName.value.trim())
+  if (!restoreFocus) return
+  void nextTick(() => nameButton.value?.focus())
+}
+
+function commitRename(restoreFocus = false) {
+  const changed = draftName.value.trim() !== props.swatch.name
+  endRename(restoreFocus)
+  if (changed) emit('rename', draftName.value.trim())
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -319,12 +335,13 @@ function onKeydown(event: KeyboardEvent) {
         :class="layout === 'row' ? 'max-w-[24ch] text-left' : 'max-w-[18ch] text-center'"
         :placeholder="fallbackName"
         autofocus
-        @blur="commitRename"
-        @keydown.enter.prevent="commitRename"
-        @keydown.esc.prevent="editing = false"
+        @blur="commitRename(false)"
+        @keydown.enter.prevent="commitRename(true)"
+        @keydown.esc.prevent="endRename(true)"
       />
       <button
         v-else
+        ref="nameButton"
         type="button"
         class="truncate rounded px-1.5 py-0.5 text-xs opacity-70 transition hover:bg-current/12 hover:opacity-100 @max-[4.5rem]/swatch:hidden"
         :class="nameClass"

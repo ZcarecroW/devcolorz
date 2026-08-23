@@ -27,12 +27,7 @@ const DAYS_IN_MONTH = 31
 const TODAY = 12
 
 /** Each calendar owns a ramp index for the whole view, chips and legend alike. */
-const calendars = [
-  { name: 'Design', ramp: 0 },
-  { name: 'Engineering', ramp: 3 },
-  { name: 'Personal', ramp: 6 },
-  { name: 'On call', ramp: 9 },
-]
+const calendars = [{ name: 'Design' }, { name: 'Engineering' }, { name: 'Personal' }, { name: 'On call' }]
 
 interface CalendarEvent {
   label: string
@@ -86,8 +81,20 @@ const cells = computed<Cell[]>(() =>
   }),
 )
 
+/**
+ * Spread the four calendars across whatever ramp there is.
+ *
+ * The indices used to be fixed at 0, 3, 6 and 9, which at the three colours
+ * this template declares as its minimum all wrapped back to step 1 — four
+ * calendars, every event chip and every legend dot in one identical colour.
+ * Derived from the ramp length, they stay as far apart as the palette allows.
+ */
+const calendarRamps = computed(() =>
+  calendars.map((_, i) => Math.round((i * rampCount.value) / calendars.length)),
+)
+
 function calendarRamp(index: number): string {
-  return ramp(calendars[index]?.ramp ?? index)
+  return ramp(calendarRamps.value[index] ?? index)
 }
 </script>
 

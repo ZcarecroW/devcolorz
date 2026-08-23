@@ -223,12 +223,17 @@ export function slugify(input: string): string {
  * last one quietly wins.
  */
 export function uniqueSlugs(labels: string[]): string[] {
-  const seen = new Map<string, number>()
+  // The set holds what was *emitted*, not what was asked for: counting bare
+  // bases let ['Blue', 'Blue 2', 'Blue'] emit `blue-2` twice, since the third
+  // label's generated suffix landed on the second label's real name.
+  const used = new Set<string>()
   return labels.map((label) => {
     const base = slugify(label)
-    const count = seen.get(base) ?? 0
-    seen.set(base, count + 1)
-    return count === 0 ? base : `${base}-${count + 1}`
+    let candidate = base
+    let n = 1
+    while (used.has(candidate)) candidate = `${base}-${++n}`
+    used.add(candidate)
+    return candidate
   })
 }
 

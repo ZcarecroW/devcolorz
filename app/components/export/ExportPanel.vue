@@ -115,12 +115,18 @@ const result = computed(() => {
   }
   try {
     const graph = buildGraph(snap.swatches, snap.config, snap.title)
-    return { text: chosen.emit(graph), tokens: graph.tokens.length, error: null as string | null }
+    return {
+      text: chosen.emit(graph),
+      tokens: graph.tokens.length,
+      renames: graph.renames,
+      error: null as string | null,
+    }
   } catch (error) {
     // A bad combination of settings must not take the studio down with it.
     return {
       text: '',
       tokens: 0,
+      renames: [] as Array<{ from: string; to: string }>,
       error: error instanceof Error ? error.message : 'That combination could not be generated.',
     }
   }
@@ -135,9 +141,11 @@ const byteLabel = computed(() =>
 
 const example = computed(() => {
   const cfg = config.value
-  const first = palette.swatches.find((s) => !cfg.overrides[s.id]?.exclude)
-  const own = first ? (cfg.overrides[first.id]?.name ?? (cfg.useNames ? first.name : '')) : ''
-  const stem = own.trim() ? own : `${cfg.fallbackStem}-1`
+  // The same stem the export will actually use, gaps and all — recomputing it
+  // here re-derived `color-1` for a swatch that exports as `color-3`.
+  const stems = stemsFor(palette.swatches, cfg)
+  const index = palette.swatches.findIndex((s) => !cfg.overrides[s.id]?.exclude)
+  const stem = index >= 0 ? stems[index] : `${cfg.fallbackStem}-1`
   return {
     base: composeName(cfg, stem),
     scale: composeName(cfg, stem, cfg.scalePreset === 'radix' ? '9' : '500'),
@@ -145,13 +153,19 @@ const example = computed(() => {
   }
 })
 
-/** The variable each swatch will emit — kept undebounced so the rows stay live. */
+/**
+ * The variable each swatch will emit — kept undebounced so the rows stay live.
+ *
+ * Numbered over the whole palette, exactly as `buildGraph` does. Numbering
+ * over the surviving swatches instead made the row preview disagree with the
+ * emitted file the moment one colour was excluded.
+ */
 const tokenNames = computed(() => {
   const cfg = config.value
-  const included = palette.swatches.filter((s) => !cfg.overrides[s.id]?.exclude)
-  const stems = stemsFor(included, cfg)
+  const stems = stemsFor(palette.swatches, cfg)
   const map: Record<string, string> = {}
-  included.forEach((swatch, index) => {
+  palette.swatches.forEach((swatch, index) => {
+    if (cfg.overrides[swatch.id]?.exclude) return
     map[swatch.id] = composeName(cfg, stems[index])
   })
   return map
@@ -886,13 +900,31 @@ const precisionApplies = computed(() => !PRECISION_FREE.includes(config.value.fo
                 v-if="config.darkDelivery === 'class' || config.darkDelivery === 'both'"
                 class="flex items-center gap-2"
               >
-                <Label class="w-20 shrink-0 text-xs" for="export-dark-class">Class</Label>
+                <Label class="w-20 shrink-0 text-xs" for="export-dark-class">Dark class</Label>
                 <Input
                   id="export-dark-class"
                   :model-value="config.darkClass"
                   class="h-8 flex-1 font-mono text-xs"
                   placeholder=".dark"
                   @update:model-value="patch({ darkClass: String($event) })"
+                />
+              </div>
+
+              <div v-if="config.darkDelivery === 'both'" class="flex items-center gap-2">
+                <Label class="flex w-20 shrink-0 items-center gap-1 text-xs" for="export-light-class">
+                  Light class
+                  <InfoHint
+                    title="Forcing light back on"
+                    wide
+                    text="The other half of a two-way toggle. The media query supplies the default, the dark class forces dark on a light system, and this class forces light on a dark one. It is emitted inside the media query, where it can win without outranking the query itself — put it on the same element your dark class goes on."
+                  />
+                </Label>
+                <Input
+                  id="export-light-class"
+                  :model-value="config.lightClass"
+                  class="h-8 flex-1 font-mono text-xs"
+                  placeholder=".light"
+                  @update:model-value="patch({ lightClass: String($event) })"
                 />
               </div>
 
@@ -1067,8 +1099,25 @@ const precisionApplies = computed(() => !PRECISION_FREE.includes(config.value.fo
         {{ result.error }}
       </p>
 
+      <!--
+        A rename is not a detail to keep to ourselves. Two colors that expand
+        to the same variable — "Blue 500" beside the 500 step of "Blue" — used
+        to overwrite one another silently; saying which one moved is the
+        difference between a puzzle and a decision.
+      -->
+      <p
+        v-if="result.renames && result.renames.length"
+        class="rounded-md border border-warning/40 bg-warning/10 p-2 text-[11px] leading-snug text-warning"
+      >
+        {{ result.renames.length }} variable{{ result.renames.length === 1 ? '' : 's' }} would have
+        collided and {{ result.renames.length === 1 ? 'was' : 'were' }} renamed:
+        <span v-for="(rename, index) in result.renames" :key="rename.to" class="font-mono">
+          {{ index ? ', ' : '' }}{{ rename.from }} → {{ rename.to }}
+        </span>
+      </p>
+
       <pre
-        v-else
+        v-if="!result.error"
         class="scroll-slim max-h-72 overflow-auto rounded-md border bg-background/60 p-2 font-mono text-[10px] leading-relaxed"
         :data-language="emitter.language"
       >{{ result.text }}</pre>
@@ -1079,13 +1128,20 @@ const precisionApplies = computed(() => !PRECISION_FREE.includes(config.value.fo
           <Copy v-else />
           {{ copied ? 'Copied' : 'Copy' }}
         </Button>
+        <!--
+          `shrink` overrides the button's own `shrink-0` — they are the same
+          tailwind-merge group, so `min-w-0` alone would not have done it. A
+          palette with an ordinary name produces a filename long enough to push
+          the button out of the card and under the edge of the sidebar.
+        -->
         <Button
           variant="outline"
+          class="min-w-0 shrink"
           :disabled="!result.text"
           :title="`Download ${fileName}`"
           @click="download"
         >
-          <Download /> {{ fileName }}
+          <Download /> <span class="truncate">{{ fileName }}</span>
         </Button>
       </div>
     </section>

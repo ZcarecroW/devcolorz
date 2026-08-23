@@ -119,6 +119,30 @@ final class Security
         return $hash;
     }
 
+    /**
+     * A hash to verify against when there is no real one.
+     *
+     * Written to disk on first use so the cost is paid once for the lifetime
+     * of the installation rather than on every request that needs to look
+     * busy. It is not a secret — nothing is ever hashed *to* it — but it has
+     * to use this host's cost parameters, which is why it cannot be a literal.
+     */
+    public static function dummyHash(): string
+    {
+        static $cached = null;
+        if (is_string($cached)) {
+            return $cached;
+        }
+        $file = Paths::storage() . '/.ht-timing-hash';
+        $stored = is_file($file) ? (string) @file_get_contents($file) : '';
+        if ($stored !== '' && password_get_info($stored)['algo'] !== null) {
+            return $cached = $stored;
+        }
+        $fresh = self::hashPassword('devcolorz-timing-equalizer');
+        @file_put_contents($file, $fresh, LOCK_EX);
+        return $cached = $fresh;
+    }
+
     public static function verifyPassword(string $password, string $hash): bool
     {
         return password_verify(self::pepper($password), $hash);

@@ -16,13 +16,14 @@
     RewriteRule ^ index.php [L,QSA]
 </IfModule>
 
-# The library and route files are included by index.php and must never be
-# requested directly: some of them would fatal, and a fatal can leak a path.
-<FilesMatch "\.(php)$">
-    <IfModule mod_authz_core.c>
-        Require all granted
-    </IfModule>
-</FilesMatch>
+# There is deliberately no blanket `Require all granted` for .php here.
+#
+# It used to be present, directly under a comment saying the library and route
+# files must never be requested — and it granted them. Apache merges
+# <FilesMatch> sections *after* the directory-context directives of a nested
+# .htaccess, so this section overrode the `Require all denied` in api/lib/ and
+# api/routes/ and made every one of those files directly fetchable. index.php
+# needs no grant: nothing denies it at this level.
 
 <IfModule mod_headers.c>
     Header always set X-Content-Type-Options "nosniff"

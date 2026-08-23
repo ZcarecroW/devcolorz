@@ -71,7 +71,14 @@ const spreadHint = computed(
 )
 
 function apply(id: HarmonyId) {
-  palette.applyHarmony(id, { wheel: wheel.value, angle: angle.value, vary: vary.value })
+  // The anchor the user picked above, not whichever swatch happens to be
+  // locked — the panel shows every preview built from that anchor, so applying
+  // one from a different colour would not be the palette on screen.
+  palette.applyHarmony(
+    id,
+    { wheel: wheel.value, angle: angle.value, vary: vary.value },
+    anchor.value?.id,
+  )
 }
 </script>
 
@@ -137,6 +144,7 @@ function apply(id: HarmonyId) {
         <button
           type="button"
           role="switch"
+          aria-label="Vary lightness and chroma across the scheme"
           :aria-checked="vary"
           class="relative h-5 w-9 shrink-0 rounded-full transition-colors"
           :class="vary ? 'bg-primary' : 'bg-input'"
@@ -169,17 +177,34 @@ function apply(id: HarmonyId) {
       </div>
     </div>
 
+    <!--
+      The card is one target, but the explanation trigger is not inside it.
+      A button inside a button is not valid HTML, and the click on the info
+      icon reached the card underneath: opening the tooltip also applied the
+      scheme and overwrote the palette. The card's own button is stretched
+      behind the content instead, and only the trigger takes pointer events.
+    -->
     <div class="flex flex-col gap-1.5">
-      <button
+      <div
         v-for="scheme in schemes"
         :key="scheme.id"
-        type="button"
-        class="group/scheme rounded-lg border bg-card/40 p-2 text-left transition-colors hover:border-primary/50 hover:bg-accent/40 focus-visible:border-primary focus-visible:outline-none"
-        @click="apply(scheme.id)"
+        class="group/scheme relative rounded-lg border bg-card/40 p-2 text-left transition-colors hover:border-primary/50 hover:bg-accent/40 focus-within:border-primary"
       >
-        <div class="mb-1.5 flex items-center gap-2">
+        <button
+          type="button"
+          class="absolute inset-0 rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          :aria-label="`Apply the ${scheme.label} scheme to the palette`"
+          @click="apply(scheme.id)"
+        />
+        <div class="pointer-events-none relative mb-1.5 flex items-center gap-2">
           <span class="min-w-0 truncate text-xs font-medium">{{ scheme.label }}</span>
-          <InfoHint :title="scheme.label" :text="scheme.hint" wide side="right" />
+          <InfoHint
+            class="pointer-events-auto"
+            :title="scheme.label"
+            :text="scheme.hint"
+            wide
+            side="right"
+          />
           <span
             v-if="takesAngle(scheme.id)"
             class="shrink-0 rounded-sm bg-muted px-1 font-mono text-[9px] text-muted-foreground tabular-nums"
@@ -190,7 +215,7 @@ function apply(id: HarmonyId) {
           <span class="flex-1" />
           <Check class="size-3.5 shrink-0 opacity-0 transition group-hover/scheme:opacity-60" />
         </div>
-        <div class="flex h-7 overflow-hidden rounded-md">
+        <div class="pointer-events-none relative flex h-7 overflow-hidden rounded-md">
           <span
             v-for="(color, index) in scheme.colors"
             :key="index"
@@ -198,7 +223,7 @@ function apply(id: HarmonyId) {
             :style="{ background: color }"
           />
         </div>
-      </button>
+      </div>
     </div>
 
     <Button variant="outline" class="w-full" @click="palette.sortBy('hue')">

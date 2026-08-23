@@ -2,10 +2,12 @@
 /**
  * Create an account.
  *
- * Registration is invite-only: an administrator issues a code and the server
- * refuses anything else. That is stated on the field rather than discovered
- * after a rejected submit, because the alternative is people filling in four
- * inputs to be told they were never eligible.
+ * Whether an invitation code is needed is the administrator's choice, so the
+ * field follows `features.inviteOnly` from `/meta` rather than being a fixture
+ * of the form. It is stated on the field rather than discovered after a
+ * rejected submit, because the alternative is people filling in four inputs to
+ * be told they were never eligible — and, before this followed the setting, an
+ * open instance still demanded a code nobody could supply.
  *
  * The strength meter measures length first and character classes second, which
  * is the opposite of the usual "must contain a symbol" rule and matches how
@@ -25,11 +27,10 @@ import { Label } from '@/components/ui/label'
 import { ApiError, api } from '@/lib/api'
 import { useSessionStore } from '@/stores/session'
 
-  'password passw0rd password1 letmein welcome qwerty qwertyuiop azerty 123456 1234567 12345678 123456789 1234567890 111111 000000 abc123 monkey dragon sunshine princess football baseball iloveyou admin administrator root login master shadow superman batman starwars trustno1 whatever freedom hunter ninja passwort'.split(
-    ' ',
-  )
-
 const session = useSessionStore()
+
+/** Follows the instance setting; see the block comment above. */
+const inviteRequired = computed(() => session.inviteRequired)
 
 const displayName = ref('')
 const email = ref('')
@@ -45,7 +46,21 @@ const submitted = ref(false)
 const formError = ref('')
 const fieldErrors = ref<Record<string, string>>({})
 
-const strength = computed(() => scorePassword(password.value))
+/**
+ * The minimum comes from the server, not from this file: an administrator can
+ * raise `auth.minPasswordLength`, and a meter that still called twelve
+ * characters acceptable would send the form off to be rejected.
+ *
+ * The address and the display name go in as `context` because a password built
+ * out of something already on this screen is not a secret, and it is the
+ * mistake people make while filling a form in a hurry.
+ */
+const strength = computed(() =>
+  scorePassword(password.value, {
+    minLength: session.minPasswordLength,
+    context: [email.value, displayName.value],
+  }),
+)
 
 const meterClass = computed(() => {
   if (strength.value.score <= 1) return 'bg-destructive'
@@ -59,7 +74,7 @@ const blocked = computed(
     submitting.value ||
     !displayName.value.trim() ||
     !email.value.trim() ||
-    !inviteToken.value.trim() ||
+    (inviteRequired.value && !inviteToken.value.trim()) ||
     !strength.value.acceptable,
 )
 
@@ -73,7 +88,7 @@ async function submit() {
       email: email.value.trim(),
       password: password.value,
       displayName: displayName.value.trim(),
-      inviteToken: inviteToken.value.trim(),
+      ...(inviteRequired.value ? { inviteToken: inviteToken.value.trim() } : {}),
       captchaToken: captchaToken.value,
     })
     submitted.value = true
@@ -102,15 +117,23 @@ async function submit() {
 <template>
   <AuthShell
     v-if="submitted"
-    title="Check your email"
-    subtitle="The account exists but is not usable yet."
+    :title="session.emailVerificationRequired ? 'Check your email' : 'Account created'"
+    :subtitle="
+      session.emailVerificationRequired
+        ? 'The account exists but is not usable yet.'
+        : 'The account is active and ready to sign in.'
+    "
   >
     <p class="flex items-start gap-2 text-sm leading-relaxed text-muted-foreground">
       <CircleCheck class="mt-0.5 size-4 shrink-0 text-primary" />
-      <span>
+      <span v-if="session.emailVerificationRequired">
         A confirmation link is on its way to <strong class="text-foreground">{{ email }}</strong>.
         Open it and the account becomes active. The link is good for 24 hours; after that, request
         a new one from the sign-in page.
+      </span>
+      <span v-else>
+        <strong class="text-foreground">{{ email }}</strong> can sign in now — this instance does
+        not ask new accounts to confirm their address.
       </span>
     </p>
     <template #footer>
@@ -159,7 +182,7 @@ async function submit() {
         </p>
       </div>
 
-      <div class="flex flex-col gap-1.5">
+      <div v-if="inviteRequired" class="flex flex-col gap-1.5">
         <Label for="register-invite" class="gap-1.5">
           Invitation code
           <InfoHint
@@ -194,7 +217,7 @@ async function submit() {
           <InfoHint
             title="What the meter measures"
             wide
-            text="Length first, character classes second, and a check against the passwords every cracking list starts with. That order matches how guessing actually works: a 16-character phrase of ordinary words survives far longer than an eight-character one with a symbol bolted on. The minimum here is 12 characters, and pasting from a password manager is never blocked."
+:text="`Length first, character classes second, and a check against the passwords every cracking list starts with. That order matches how guessing actually works: a 16-character phrase of ordinary words survives far longer than an eight-character one with a symbol bolted on. The minimum on this instance is ${session.minPasswordLength} characters, and pasting from a password manager is never blocked.`"
           />
         </Label>
         <div class="relative">
@@ -205,7 +228,11 @@ async function submit() {
             autocomplete="new-password"
             class="pr-10"
             :aria-invalid="Boolean(fieldErrors.password)"
-            aria-describedby="register-password-meter"
+            :aria-describedby="
+              fieldErrors.password
+                ? 'register-password-error register-password-meter'
+                : 'register-password-meter'
+            "
           />
           <Button
             type="button"
@@ -241,7 +268,14 @@ async function submit() {
         >
           {{ strength.advice }}
         </p>
-        <p v-if="fieldErrors.password" class="text-xs text-destructive">{{ fieldErrors.password }}</p>
+        <p
+          v-if="fieldErrors.password"
+          id="register-password-error"
+          role="alert"
+          class="text-xs text-destructive"
+        >
+          {{ fieldErrors.password }}
+        </p>
       </div>
 
       <HCaptchaField ref="captcha" v-model="captchaToken" />

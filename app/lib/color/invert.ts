@@ -97,9 +97,22 @@ function curveLightness(l: number, chroma: number, floor: number, ceiling: numbe
   // Surfaces and ink: flip into the usable dark band.
   const surface = floor + (1 - l) * (ceiling - floor)
 
-  // Accents: land between 62% and 88%, darker originals lifted further, so the
-  // result reads on a dark background while preserving the palette's ordering.
-  const accent = 0.62 + (1 - l) * 0.26
+  /*
+   * Accents: land between 62% and 88% at the default band, darker originals
+   * lifted further, so the result reads on a dark background while preserving
+   * the palette's ordering.
+   *
+   * Expressed as a fraction of the legal band rather than as fixed numbers.
+   * Both bounds are user-controlled, and at a ceiling of 0.8 — which the
+   * export panel offers — the fixed band ran past it, so `Math.min(ceiling, …)`
+   * flattened the top of the ramp onto one value and reversed the order of the
+   * steps just below it. At the default floor and ceiling this reproduces
+   * 0.62–0.88 exactly.
+   */
+  const span = ceiling - floor
+  const accentLow = floor + 0.60759 * span
+  const accentHigh = floor + 0.93671 * span
+  const accent = accentLow + (1 - l) * (accentHigh - accentLow)
 
   // 0.03 is about where a colour stops looking like a tinted grey; by 0.10 it
   // is unambiguously an accent.
@@ -115,12 +128,35 @@ function curveLightness(l: number, chroma: number, floor: number, ceiling: numbe
  * would make them. We approximate that by piecewise-remapping the input band.
  */
 function radixLightness(l: number, floor: number, ceiling: number): number {
-  if (l >= 0.9) return floor + (1 - l) * 0.6 // app/subtle backgrounds
-  if (l >= 0.75) return floor + 0.06 + (0.9 - l) * 0.5 // component backgrounds
-  if (l >= 0.55) return 0.34 + (0.75 - l) * 0.55 // borders
-  if (l >= 0.4) return Math.min(ceiling, l + 0.06) // solid brand colors barely move
-  if (l >= 0.25) return Math.min(ceiling, 0.72 + (0.4 - l) * 0.6) // low-contrast text
-  return Math.min(ceiling, ceiling - l * 0.25) // high-contrast text
+  /*
+   * The bands are chained through shared anchors so each one starts exactly
+   * where the previous one ended. Written as independent formulas they did not
+   * meet: the borders band ended at 0.45 while the solid band restarted at
+   * `l + 0.06` = 0.61, a 0.155 jump at L 0.55 that reversed the order of the
+   * ramp. A light 600 and a light 700 came back with 700 the *lighter* of the
+   * two, so a hover state built as "600 idle, 700 pressed" got brighter on
+   * press. Monotonically non-increasing in `l`, which is what makes a
+   * descending light ramp produce an ascending dark one.
+   *
+   * The anchors are clamped once, in a chain, rather than each band being
+   * clamped where it returns. Both bounds are user-controlled — the export
+   * panel's floor reaches 0.4 and its ceiling bottoms out at 0.6 — so fixed
+   * anchors outside that window reversed the ramp again at one end, while
+   * clamping per band collapsed several steps onto one value at the other.
+   */
+  const top = Math.max(floor, ceiling)
+  const a90 = Math.min(top, floor + 0.06) // where the background band ends
+  const a75 = Math.min(top, a90 + 0.075) // component backgrounds
+  const a55 = Math.min(top, Math.max(a75, 0.45)) // borders
+  const a40 = Math.min(top, Math.max(a55, 0.5)) // solid brand: nearly flat
+  const a25 = Math.min(top, Math.max(a40, 0.72)) // low-contrast text
+
+  if (l >= 0.9) return floor + (1 - l) * ((a90 - floor) / 0.1)
+  if (l >= 0.75) return a90 + (0.9 - l) * ((a75 - a90) / 0.15)
+  if (l >= 0.55) return a75 + (0.75 - l) * ((a55 - a75) / 0.2)
+  if (l >= 0.4) return a55 + (0.55 - l) * ((a40 - a55) / 0.15)
+  if (l >= 0.25) return a40 + (0.4 - l) * ((a25 - a40) / 0.15)
+  return a25 + (0.25 - l) * ((top - a25) / 0.25)
 }
 
 /**
@@ -130,9 +166,19 @@ function radixLightness(l: number, floor: number, ceiling: number): number {
  * tone 60 rather than tone 50".
  */
 function materialLightness(l: number, floor: number, ceiling: number): number {
-  const tone = l // OKLCH L tracks M3 tone closely enough for this purpose
-  const reflected = 1.2 - tone
-  return Math.min(ceiling, Math.max(floor, reflected))
+  /*
+   * Reflecting around tone 60 is the M3 idea, but `1.2 - l` leaves the legal
+   * band for every tone below 0.27, and clamping there mapped a quarter of the
+   * input range onto one output value: a near-black surface and a dark slate
+   * came out as the same near-white, so the surface and the thing standing on
+   * it merged. Flip into the band, then lift the middle. The lift is zero at
+   * both ends, so white still reaches the floor and black the ceiling, and
+   * since 1 + 0.16π·cos(πt) ≥ 0.497 the map stays strictly monotone — two
+   * distinct inputs can never collapse onto one output again.
+   */
+  const t = 1 - l
+  const lifted = t + 0.16 * Math.sin(Math.PI * t)
+  return floor + Math.min(1, Math.max(0, lifted)) * (ceiling - floor)
 }
 
 /**

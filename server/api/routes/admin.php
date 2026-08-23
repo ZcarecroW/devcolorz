@@ -60,7 +60,7 @@ function registerAdminRoutes(Router $router): void
                 'failed' => (int) Db::value("SELECT COUNT(*) FROM mail_outbox WHERE status = 'dead'"),
                 'sent24h' => (int) Db::value("SELECT COUNT(*) FROM mail_outbox WHERE status = 'sent' AND sent_at > ?", [time() - 86400]),
             ],
-            'storageExposed' => SelfTest::storageReachable(),
+            'storageExposed' => SelfTest::exposureStatus()['exposed'],
             'sessions'       => (int) Db::value('SELECT COUNT(*) FROM sessions WHERE user_id IS NOT NULL'),
         ]);
     });
@@ -130,7 +130,7 @@ function registerAdminRoutes(Router $router): void
         $params = [];
         $q = Http::query('q');
         if ($q !== null && $q !== '') {
-            $where[] = '(email LIKE ? OR display_name LIKE ?)';
+            $where[] = "(email LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\')";
             $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
             $params[] = $like;
             $params[] = $like;
@@ -275,7 +275,7 @@ function registerAdminRoutes(Router $router): void
         $params = [];
         $q = Http::query('q');
         if ($q !== null && $q !== '') {
-            $where[] = '(p.title LIKE ? OR p.hex_index LIKE ?)';
+            $where[] = "(p.title LIKE ? ESCAPE '\\' OR p.hex_index LIKE ? ESCAPE '\\')";
             $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], strtolower(ltrim($q, '#'))) . '%';
             $params[] = $like;
             $params[] = $like;
@@ -372,23 +372,64 @@ function registerAdminRoutes(Router $router): void
         Http::noContent();
     });
 
+    /**
+     * Send a diagnostic message and report what actually happened.
+     *
+     * Deliberately not queued. Queueing it and calling `Mail::flush(1)` sent
+     * whichever message happened to be first in line — so a test could report
+     * success having never touched the address under test — and the per-hour
+     * cap could swallow it entirely. Sending directly means the return value
+     * describes this message and nothing else.
+     *
+     * The envelope goes back with the result because a `true` from `mail()`
+     * only says the local transport accepted it. When a test "succeeds" and
+     * nothing arrives, the From domain is almost always the reason, and the
+     * administrator cannot check that without being told what it is.
+     */
     $router->post('/admin/mail/test', static function (): void {
         $admin = Auth::requireAdmin();
-        $to = is_string(Http::input('to')) ? trim((string) Http::input('to')) : (string) $admin['email'];
+        $to = is_string(Http::input('to')) ? trim((string) Http::input('to')) : '';
+        if ($to === '') {
+            $to = (string) $admin['email'];
+        }
         if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
             Http::validationFailed(['to' => 'That does not look like an email address.']);
         }
         $site = Settings::str('site.name', 'DevColorz');
-        Mail::queue(
-            $to,
-            "$site test message",
-            "This is a test message from $site.\n\n"
-                . "If it arrived, outgoing mail works on this host.\n\n"
-                . 'Sent from ' . Http::baseUrl() . " at " . date('c') . ".\n",
-        );
-        $result = Mail::flush(1);
-        Audit::log('admin.mail.test', $to, $result);
-        Http::json($result);
+        $envelope = Mail::envelope();
+
+        if (!$envelope['available']) {
+            Http::json([
+                'sent'     => false,
+                'error'    => 'mail() is disabled on this host, so nothing can be sent.',
+                'envelope' => $envelope,
+            ]);
+        }
+
+        $ok = false;
+        $error = '';
+        try {
+            $ok = Mail::send(
+                $to,
+                "$site test message",
+                "This is a test message from $site.\n\n"
+                    . "If it arrived, outgoing mail works on this host.\n\n"
+                    . 'Sent from ' . Http::baseUrl() . ' at ' . date('c') . ".\n",
+                '',
+            );
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+        }
+        if (!$ok && $error === '') {
+            $error = Mail::lastError();
+        }
+
+        Audit::log('admin.mail.test', $to, ['ok' => $ok, 'error' => $error]);
+        Http::json([
+            'sent'     => $ok,
+            'error'    => $error,
+            'envelope' => $envelope,
+        ]);
     });
 
     /* ---------------- system ---------------- */
@@ -398,11 +439,18 @@ function registerAdminRoutes(Router $router): void
         Http::json(Audit::page(Http::query('cursor')));
     });
 
+    /**
+     * Run the checks for real.
+     *
+     * This is the only place the exposure probe runs on demand — the
+     * administrator asked for it and is waiting for the answer. Everywhere
+     * else reads the verdict this call stores.
+     */
     $router->get('/admin/selftest', static function (): void {
         Auth::requireAdmin();
-        Http::json([
-            'checks'   => array_merge(SelfTest::environment(), SelfTest::exposure()),
-        ]);
+        $exposure = SelfTest::exposure();
+        SelfTest::refreshExposure($exposure);
+        Http::json(['checks' => array_merge(SelfTest::environment(), $exposure)]);
     });
 
     $router->post('/admin/maintenance', static function (): void {

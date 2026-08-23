@@ -155,6 +155,18 @@ function registerSetupRoutes(Router $router): void
         // successful install into a failed one.
         try {
             $exposure = SelfTest::exposure();
+            // Store the verdict as well as showing it. The wizard shows it
+            // once; the administrator clicks past it; and without this the
+            // dashboard reported "never checked" from then until cron first
+            // ran — on an installation where storage really was being served,
+            // that is the alarm staying dark for as long as nobody looks.
+            // Never stored from the catch branch below: that check is
+            // synthetic, and recording it would raise a false alarm.
+            try {
+                SelfTest::refreshExposure($exposure);
+            } catch (\Throwable $inner) {
+                error_log('[devcolorz] storing the exposure verdict failed: ' . $inner->getMessage());
+            }
         } catch (\Throwable $e) {
             error_log('[devcolorz] exposure probe failed: ' . $e->getMessage());
             $exposure = [[

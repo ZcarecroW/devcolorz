@@ -22,7 +22,23 @@ type Phase = 'asking' | 'working' | 'done' | 'failed'
 const session = useSessionStore()
 const route = useRoute()
 
-const token = ref(typeof route.query.token === 'string' ? route.query.token : '')
+/**
+ * The token can arrive under either name.
+ *
+ * The emails send `?t=` — short, because mail clients wrap long links and every
+ * character counts against that. `?token=` is accepted too so a link somebody
+ * assembled by hand, or one from an older release, still works.
+ */
+function tokenFromQuery(query: typeof route.query): string {
+  for (const key of ['t', 'token']) {
+    const value = query[key]
+    const first = Array.isArray(value) ? value[0] : value
+    if (typeof first === 'string' && first.trim()) return first.trim()
+  }
+  return ''
+}
+
+const token = ref(tokenFromQuery(route.query))
 const phase = ref<Phase>('asking')
 const failure = ref('')
 const verifiedEmail = ref('')

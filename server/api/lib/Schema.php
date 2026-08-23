@@ -199,6 +199,47 @@ final class Schema
         ];
     }
 
+    /**
+     * Run any pending migrations, once, cheaply enough for every request.
+     *
+     * Upgrading is documented as "upload it over the top", and nothing on the
+     * request path ran migrations — so after a release that added one, every
+     * endpoint touching the new column returned 500 until the scheduler
+     * happened to fire. An operator who never wired up cron, or who had turned
+     * it off in Settings, never got them at all.
+     *
+     * The marker is named after the last migration in the shipped list, so a
+     * new release invalidates it automatically and an unchanged one costs a
+     * single `is_file`. The lock is what stops a burst of concurrent requests
+     * after an upgrade all deciding to migrate at the same time; whoever loses
+     * the race simply proceeds, because the winner is finished by then.
+     */
+    public static function migrateIfNeeded(): void
+    {
+        $migrations = self::migrations();
+        $last = (string) ($migrations[count($migrations) - 1]['id'] ?? 'none');
+        $marker = Paths::storage() . '/schema-' . $last . '.ok';
+        if (is_file($marker)) {
+            return;
+        }
+
+        $lock = @fopen(Paths::locks() . '/schema.lock', 'c');
+        if ($lock === false) {
+            // No lock file is not a reason to serve a stale schema.
+            self::migrate();
+            @touch($marker);
+            return;
+        }
+        if (flock($lock, LOCK_EX)) {
+            if (!is_file($marker)) {
+                self::migrate();
+                @touch($marker);
+            }
+            flock($lock, LOCK_UN);
+        }
+        fclose($lock);
+    }
+
     public static function migrate(): int
     {
         $pdo = Db::connect();

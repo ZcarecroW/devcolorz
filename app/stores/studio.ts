@@ -56,17 +56,26 @@ const DEFAULTS: Persisted = {
   paletteView: 'columns',
 }
 
-function load(): Persisted {
+function load(): { values: Persisted; restored: boolean } {
   try {
     const raw = localStorage.getItem(KEY)
-    return raw ? { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Persisted>) } : DEFAULTS
+    if (!raw) return { values: DEFAULTS, restored: false }
+    return { values: { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Persisted>) }, restored: true }
   } catch {
-    return DEFAULTS
+    return { values: DEFAULTS, restored: false }
   }
 }
 
 export const useStudioStore = defineStore('studio', () => {
-  const saved = load()
+  const { values: saved, restored } = load()
+  /**
+   * True on a browser that has never used this instance.
+   *
+   * The administrator's engine defaults are applied only then: once a visitor
+   * has picked a notation or a contrast metric, a server-side default has no
+   * business overwriting it on the next reload.
+   */
+  const usingDefaults = ref(!restored)
 
   const format = ref<ColorFormat>(saved.format)
   const activePanel = ref<PanelId>(saved.activePanel)
@@ -152,6 +161,7 @@ export const useStudioStore = defineStore('studio', () => {
     paletteView,
     shortcutsOpen,
     commandOpen,
+    usingDefaults,
     openPanel,
   }
 })

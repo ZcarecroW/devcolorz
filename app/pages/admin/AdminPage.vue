@@ -51,7 +51,8 @@ interface AdminStats {
   db: { bytes: number; wal: boolean; pageCount: number; sqliteVersion?: string }
   cron: { lastRunAt: number | null; lastOk: boolean; jobs: CronJob[] }
   outbox: { queued: number; failed: number; sent24h: number }
-  storageExposed: boolean
+  storageExposed: boolean | null
+  storageCheckedAt?: number | null
   sessions?: number
 }
 
@@ -159,7 +160,7 @@ const warnings = computed<Warning[]>(() => {
   if (!current) return []
   const list: Warning[] = []
 
-  if (current.storageExposed) {
+  if (current.storageExposed === true) {
     list.push({
       id: 'storage',
       critical: true,
@@ -169,6 +170,20 @@ const warnings = computed<Warning[]>(() => {
         'Anyone who guesses the path can download every account, password hash and private palette in one file. ' +
         'Fix it at the web server: deny the directory in .htaccess, or move storage above the document root and point the config at the new path. ' +
         'Re-run the self-test on the System tab once you have.',
+    })
+  }
+
+  // `null` is "we do not know", which is not the same as "safe" and is the
+  // more dangerous of the two to render as silence.
+  if (current.storageExposed === null) {
+    list.push({
+      id: 'storage-unknown',
+      critical: false,
+      title: 'Nobody has checked whether storage/ is downloadable',
+      body:
+        'The check asks this server for storage/, config.php and the database file from the outside, and it has not completed. ' +
+        'Until it does, there is no evidence either way that the database is protected. ' +
+        'Run it from the System tab, or fetch those paths in a browser yourself — none of them should return a file.',
     })
   }
 

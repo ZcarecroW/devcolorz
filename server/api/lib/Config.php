@@ -39,6 +39,19 @@ final class Config
         return self::all()[$key] ?? $default;
     }
 
+    /** A boolean out of config.php, tolerating the string forms a hand edit produces. */
+    public static function bool(string $key, bool $default = false): bool
+    {
+        $value = self::get($key, $default);
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_string($value)) {
+            return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
+        }
+        return (bool) $value;
+    }
+
     public static function string(string $key, string $default = ''): string
     {
         $value = self::get($key);
@@ -106,6 +119,16 @@ final class Config
             'pepper'       => bin2hex(random_bytes(32)),
             'cron_token'   => bin2hex(random_bytes(24)),
             'invite_token' => self::readableToken(),
+            /*
+             * Believe X-Forwarded-Proto and friends.
+             *
+             * Off by default and deliberately not settable from the admin
+             * console: on a host reachable directly, that header is set by
+             * whoever is calling, so switching this on there would let anyone
+             * claim their plain-HTTP request arrived over TLS. Turn it on only
+             * when something you control terminates TLS in front of PHP.
+             */
+            'trust_proxy'  => false,
         ];
     }
 

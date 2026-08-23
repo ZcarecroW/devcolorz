@@ -113,12 +113,22 @@ function colorFor(kind: LineKind): string {
             <span :style="{ color: 'var(--p-accent)' }">$ </span>
             <span :style="{ color: 'var(--p-text)' }">{{ line.text }}</span>
           </template>
+          <!--
+            The filename is painted in the text role, not in a ramp step. A
+            ramp step *is* the background at one end of any palette, so the
+            first filenames in a listing rendered in exactly the surface colour
+            and disappeared. The ramp still identifies the file — it just does
+            it with a dot beside the name rather than with the name itself.
+          -->
           <template v-else-if="line.kind === 'listing'">
             <span
               v-for="(entry, e) in line.entries"
               :key="entry"
-              :style="{ color: ramp(e) }"
-              >{{ entry }}<span v-if="e < (line.entries?.length ?? 0) - 1">  </span></span
+              :style="{ color: 'var(--p-text)' }"
+              ><span
+                class="mr-1 inline-block size-1.5 rounded-full align-middle"
+                :style="{ background: ramp(e) }"
+              />{{ entry }}<span v-if="e < (line.entries?.length ?? 0) - 1">  </span></span
             >
           </template>
           <template v-else>

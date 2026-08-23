@@ -50,22 +50,22 @@ export const COLOR_TOKENS: TokenDef[] = [
   { key: 'background', label: 'Background', group: 'base', kind: 'color', themeAlias: '--color-background', hint: 'The page canvas. Everything else sits on top of this, so it is decided first and every contrast check refers back to it.' },
   { key: 'foreground', label: 'Foreground', group: 'base', kind: 'color', themeAlias: '--color-foreground', contrastAgainst: 'background', hint: 'Default body text. Needs the strongest contrast in the whole theme — APCA Lc 75 or better against the background.' },
 
-  { key: 'card', label: 'Card', group: 'card', kind: 'color', themeAlias: '--color-card', hint: 'Raised surfaces: cards, panels, dialogs. Usually a small step away from the background rather than a different colour.' },
+  { key: 'card', label: 'Card', group: 'card', kind: 'color', themeAlias: '--color-card', hint: 'Raised surfaces: cards, panels, dialogs. Usually a small step away from the background rather than a different color.' },
   { key: 'card-foreground', label: 'Card text', group: 'card', kind: 'color', themeAlias: '--color-card-foreground', contrastAgainst: 'card', hint: 'Text on cards. Normally identical to the main foreground; give it its own value only when your card surface differs enough to need it.' },
 
   { key: 'popover', label: 'Popover', group: 'popover', kind: 'color', themeAlias: '--color-popover', hint: 'Floating surfaces: dropdowns, tooltips, command palettes. Often slightly more opaque or lighter than a card so it reads as being above the page.' },
   { key: 'popover-foreground', label: 'Popover text', group: 'popover', kind: 'color', themeAlias: '--color-popover-foreground', contrastAgainst: 'popover', hint: 'Text inside floating surfaces.' },
 
-  { key: 'primary', label: 'Primary', group: 'primary', kind: 'color', themeAlias: '--color-primary', contrastAgainst: 'background', hint: 'The brand colour. Fills the default button and marks the main action on a screen. Should clear Lc 45 against the background so the button itself is visible, independently of its label.' },
-  { key: 'primary-foreground', label: 'On primary', group: 'primary', kind: 'color', themeAlias: '--color-primary-foreground', contrastAgainst: 'primary', hint: 'Label text on the primary fill. This is the pair that breaks most hand-made themes: a mid-lightness brand colour where neither white nor black quite works.' },
+  { key: 'primary', label: 'Primary', group: 'primary', kind: 'color', themeAlias: '--color-primary', contrastAgainst: 'background', hint: 'The brand color. Fills the default button and marks the main action on a screen. Should clear Lc 45 against the background so the button itself is visible, independently of its label.' },
+  { key: 'primary-foreground', label: 'On primary', group: 'primary', kind: 'color', themeAlias: '--color-primary-foreground', contrastAgainst: 'primary', hint: 'Label text on the primary fill. This is the pair that breaks most hand-made themes: a mid-lightness brand color where neither white nor black quite works.' },
 
-  { key: 'secondary', label: 'Secondary', group: 'secondary', kind: 'color', themeAlias: '--color-secondary', hint: 'Quieter button and chip fills. Usually a neutral tinted with the brand hue rather than a second brand colour.' },
+  { key: 'secondary', label: 'Secondary', group: 'secondary', kind: 'color', themeAlias: '--color-secondary', hint: 'Quieter button and chip fills. Usually a neutral tinted with the brand hue rather than a second brand color.' },
   { key: 'secondary-foreground', label: 'On secondary', group: 'secondary', kind: 'color', themeAlias: '--color-secondary-foreground', contrastAgainst: 'secondary', hint: 'Label text on secondary fills.' },
 
   { key: 'muted', label: 'Muted', group: 'muted', kind: 'color', themeAlias: '--color-muted', hint: 'Low-emphasis backgrounds: table stripes, disabled fills, skeleton loaders.' },
   { key: 'muted-foreground', label: 'Muted text', group: 'muted', kind: 'color', themeAlias: '--color-muted-foreground', contrastAgainst: 'background', hint: 'Secondary text: captions, help text, placeholders. Deliberately lower contrast than the foreground, but it is still text — keep it above Lc 60 or you have made it decoration.' },
 
-  { key: 'accent', label: 'Accent', group: 'accent', kind: 'color', themeAlias: '--color-accent', hint: 'Hover and highlight fills for menu items, list rows and toggles. Not a second brand colour — it is the "something is happening here" tint.' },
+  { key: 'accent', label: 'Accent', group: 'accent', kind: 'color', themeAlias: '--color-accent', hint: 'Hover and highlight fills for menu items, list rows and toggles. Not a second brand color — it is the "something is happening here" tint.' },
   { key: 'accent-foreground', label: 'On accent', group: 'accent', kind: 'color', themeAlias: '--color-accent-foreground', contrastAgainst: 'accent', hint: 'Text on accent fills, typically on a hovered menu item.' },
 
   { key: 'destructive', label: 'Destructive', group: 'destructive', kind: 'color', themeAlias: '--color-destructive', contrastAgainst: 'background', hint: 'Delete buttons, error states, validation failures. Red by convention, and worth checking under protanopia, where red can collapse into the greens.' },
@@ -98,7 +98,7 @@ export const NON_COLOR_TOKENS: TokenDef[] = [
   { key: 'letter-spacing', label: 'Letter spacing', group: 'typography', kind: 'length', hint: 'Global tracking adjustment. Small negative values tighten large headings; positive values open up small caps and all-caps labels.' },
   { key: 'radius', label: 'Radius', group: 'shape', kind: 'length', hint: 'The base corner radius. Every other radius is a multiple of it, so one value re-shapes the whole interface.' },
   { key: 'spacing', label: 'Spacing unit', group: 'shape', kind: 'length', hint: 'The base spacing step Tailwind multiplies for every padding and margin utility. 0.25rem is the default; raising it makes the whole interface roomier.' },
-  { key: 'shadow-color', label: 'Shadow colour', group: 'shadow', kind: 'color', hint: 'The colour shadows are tinted with. A shadow tinted toward the brand hue looks intentional; pure black looks like a default.' },
+  { key: 'shadow-color', label: 'Shadow color', group: 'shadow', kind: 'color', hint: 'The color shadows are tinted with. A shadow tinted toward the brand hue looks intentional; pure black looks like a default.' },
   { key: 'shadow-opacity', label: 'Shadow opacity', group: 'shadow', kind: 'number', hint: 'Base alpha for shadows. Each size multiplies this, so one value controls the whole elevation ramp.' },
   { key: 'shadow-blur', label: 'Shadow blur', group: 'shadow', kind: 'length', hint: 'Base blur radius. Larger values read as a softer, higher light source.' },
   { key: 'shadow-spread', label: 'Shadow spread', group: 'shadow', kind: 'length', hint: 'Base spread. Negative values pull the shadow in tight under the element.' },
