@@ -49,3 +49,6 @@ docs/research/
 
 # release archives are attached to a GitHub release, not committed
 *.zip
+
+# local Claude Code launch config
+.claude/
