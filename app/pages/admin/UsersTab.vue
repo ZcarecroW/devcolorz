@@ -202,6 +202,9 @@ async function act(user: AdminUser, path: string, note: string) {
   try {
     await api.post(`/admin/users/${user.id}/${path}`)
     toast.success(note)
+    // Revoking sessions changes the overview's session count, which is fed by
+    // the parent — the strip otherwise kept the figure it loaded on arrival.
+    emit('changed')
   } catch (err) {
     error.value = describe(err)
   } finally {
@@ -335,12 +338,19 @@ const summary = computed(() =>
       <Table>
         <TableHeader>
           <TableRow>
+            <!--
+              The columns a phone can spare are hidden there rather than
+              scrolled: the alternative was a table scrolling sideways inside
+              the card, with the row menu — and the delete in it — off-screen
+              behind a scrollbar nobody notices. Everything hidden here is also
+              in the row's menu or a click away on the account itself.
+            -->
             <TableHead>Account</TableHead>
-            <TableHead class="w-36">Role</TableHead>
-            <TableHead class="w-40">Status</TableHead>
-            <TableHead class="w-24 text-right">Palettes</TableHead>
-            <TableHead class="w-32">Last seen</TableHead>
-            <TableHead class="w-32">Joined</TableHead>
+            <TableHead class="w-28 md:w-36">Role</TableHead>
+            <TableHead class="w-32 md:w-40">Status</TableHead>
+            <TableHead class="hidden w-24 text-right md:table-cell">Palettes</TableHead>
+            <TableHead class="hidden w-32 lg:table-cell">Last seen</TableHead>
+            <TableHead class="hidden w-32 lg:table-cell">Joined</TableHead>
             <TableHead class="w-12"><span class="sr-only">Actions</span></TableHead>
           </TableRow>
         </TableHeader>
@@ -408,11 +418,17 @@ const summary = computed(() =>
               </div>
             </TableCell>
 
-            <TableCell class="text-right tabular-nums">{{ user.palettes ?? 0 }}</TableCell>
-            <TableCell class="text-xs text-muted-foreground" :title="absolute(user.lastLoginAt)">
+            <TableCell class="hidden text-right tabular-nums md:table-cell">{{ user.palettes ?? 0 }}</TableCell>
+            <TableCell
+              class="hidden text-xs text-muted-foreground lg:table-cell"
+              :title="absolute(user.lastLoginAt)"
+            >
               {{ ago(user.lastLoginAt) }}
             </TableCell>
-            <TableCell class="text-xs text-muted-foreground" :title="absolute(user.createdAt)">
+            <TableCell
+              class="hidden text-xs text-muted-foreground lg:table-cell"
+              :title="absolute(user.createdAt)"
+            >
               {{ ago(user.createdAt) }}
             </TableCell>
 

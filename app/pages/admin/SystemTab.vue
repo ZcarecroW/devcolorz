@@ -229,19 +229,32 @@ const outboxLoading = ref(false)
 const outboxError = ref<string | null>(null)
 const outboxBusy = ref<number | null>(null)
 
+/**
+ * Which request is allowed to fill the list.
+ *
+ * The filter, a retry, a delete and a test send each reload the outbox, and
+ * two of those can be in flight at once — so the older answer could land last
+ * and show rows for a status the dropdown no longer says. The same guard every
+ * other list in the console uses.
+ */
+let outboxToken = 0
+
 async function loadOutbox() {
+  const token = ++outboxToken
   outboxLoading.value = true
   outboxError.value = null
   try {
     const result = await api.get<{ items: OutboxItem[] }>('/admin/outbox', {
       query: { status: outboxFilter.value === ANY ? undefined : outboxFilter.value },
     })
+    if (token !== outboxToken) return
     outbox.value = result.items
   } catch (err) {
+    if (token !== outboxToken) return
     outboxError.value = describe(err)
     outbox.value = []
   } finally {
-    outboxLoading.value = false
+    if (token === outboxToken) outboxLoading.value = false
   }
 }
 
@@ -790,7 +803,7 @@ onMounted(() => {
           </dl>
           <p v-if="testResult.sent" class="mt-2 text-muted-foreground">
             If nothing arrives, the From domain above is the first thing to check: the receiving
-            server drops mail whose SPF record does not authorise this host, and it does so
+            server drops mail whose SPF record does not authorize this host, and it does so
             silently. A subdomain with no SPF record of its own is the usual culprit — set the
             address to a mailbox on a domain this server is allowed to send for.
           </p>
@@ -808,7 +821,7 @@ onMounted(() => {
               <TableHead>Recipient</TableHead>
               <TableHead>Subject</TableHead>
               <TableHead class="w-28">Status</TableHead>
-              <TableHead class="w-28">Queued</TableHead>
+              <TableHead class="hidden w-28 md:table-cell">Queued</TableHead>
               <TableHead class="w-24 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>

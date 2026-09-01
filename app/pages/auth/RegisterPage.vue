@@ -69,13 +69,22 @@ const meterClass = computed(() => {
   return 'bg-primary'
 })
 
+/**
+ * An unsolved challenge blocks the button, as it does on the reset form. The
+ * server refuses the request without it, so letting it go out only spent a
+ * round trip to tell the visitor what the widget under their cursor already
+ * did.
+ */
+const captchaPending = computed(() => Boolean(session.captchaSitekey) && !captchaToken.value)
+
 const blocked = computed(
   () =>
     submitting.value ||
     !displayName.value.trim() ||
     !email.value.trim() ||
     (inviteRequired.value && !inviteToken.value.trim()) ||
-    !strength.value.acceptable,
+    !strength.value.acceptable ||
+    captchaPending.value,
 )
 
 async function submit() {

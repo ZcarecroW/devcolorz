@@ -351,7 +351,23 @@ async function deleteAccount() {
 const savingPrefs = ref(false)
 const prefsError = ref('')
 
-async function savePrefs() {
+/**
+ * Saves run one after another, never side by side.
+ *
+ * Each pick fires its own PATCH carrying every preference, so two quick picks
+ * sent two overlapping requests — and whichever the server handled last won,
+ * which could be the older one. Queued, the second save reads the store after
+ * the first has finished and so carries both choices.
+ */
+let prefsQueue: Promise<void> = Promise.resolve()
+
+function savePrefs(): Promise<void> {
+  const run = prefsQueue.then(() => writePrefs())
+  prefsQueue = run.catch(() => undefined)
+  return run
+}
+
+async function writePrefs() {
   savingPrefs.value = true
   prefsError.value = ''
   try {

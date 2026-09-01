@@ -75,6 +75,19 @@ function setTarget(next: EditTarget) {
   if (next !== 'both') theme.setAppearance(next)
 }
 
+/**
+ * And the other way round: the header's appearance menu switches the app
+ * without asking this page. The pills and the rows used to keep saying
+ * "Light" after it had turned everything on screen dark, so an edit went into
+ * the mode that was not showing and changed nothing anyone could see.
+ */
+watch(
+  () => theme.mode,
+  (mode) => {
+    if (editTarget.value !== 'both') editTarget.value = mode
+  },
+)
+
 /** The mode whose values the rows display; "both" shows whatever is on screen. */
 const previewMode = computed<Mode>(() =>
   editTarget.value === 'both' ? theme.mode : editTarget.value,

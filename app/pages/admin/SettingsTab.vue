@@ -419,7 +419,7 @@ const GROUPS: Group[] = [
         label: 'From name',
         kind: 'text',
         hintTitle: 'Display name',
-        hint: 'The name shown as the sender. Recognisable beats formal — people delete mail from senders they do not recognise, and a deleted verification mail becomes a support request.',
+        hint: 'The name shown as the sender. Recognizable beats formal — people delete mail from senders they do not recognize, and a deleted verification mail becomes a support request.',
       },
       {
         key: 'mail.fromAddress',
@@ -427,7 +427,7 @@ const GROUPS: Group[] = [
         kind: 'text',
         placeholder: 'colors@example.com',
         hintTitle: 'Envelope sender',
-        hint: 'Must be an address at a domain this server is authorised to send for, or SPF and DKIM fail and the mail lands in spam regardless of how correct everything else is. When in doubt, use an address at the same domain as the site.',
+        hint: 'Must be an address at a domain this server is authorized to send for, or SPF and DKIM fail and the mail lands in spam regardless of how correct everything else is. When in doubt, use an address at the same domain as the site.',
       },
       {
         key: 'mail.replyTo',

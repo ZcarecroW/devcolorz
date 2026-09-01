@@ -183,7 +183,12 @@ function patchItem(uuid: string, changes: Partial<PaletteSummary>) {
   items.value = items.value.map((item) => (item.uuid === uuid ? { ...item, ...changes } : item))
 }
 
+/** Palettes with a like request in flight: the endpoint toggles, so a second click must wait. */
+const likeBusy = new Set<string>()
+
 async function toggleLike(item: PaletteSummary) {
+  if (likeBusy.has(item.uuid)) return
+  likeBusy.add(item.uuid)
   const wasLiked = liked.value[item.uuid] ?? false
   const previousLikes = item.likes
 
@@ -200,6 +205,8 @@ async function toggleLike(item: PaletteSummary) {
     liked.value = { ...liked.value, [item.uuid]: wasLiked }
     patchItem(item.uuid, { likes: previousLikes })
     toast.error(describe(err, 'That like did not go through.'))
+  } finally {
+    likeBusy.delete(item.uuid)
   }
 }
 

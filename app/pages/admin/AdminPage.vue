@@ -83,6 +83,18 @@ watch(tab, (value) => {
   void router.replace({ query: { ...route.query, tab: value } })
 })
 
+// And the URL drives the tab, not only the other way round. The query was read
+// once at setup, so a pasted `?tab=system` link opened while this page was
+// already showing — the router reuses the component for a query-only change —
+// updated the address bar and nothing else.
+watch(
+  () => route.query.tab,
+  () => {
+    const next = tabFromQuery()
+    if (next !== tab.value) tab.value = next
+  },
+)
+
 const stats = ref<AdminStats | null>(null)
 const statsError = ref<string | null>(null)
 const loading = ref(false)
@@ -433,7 +445,16 @@ const cards = computed<StatCard[]>(() => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="settings">
+        <!--
+          Kept mounted while another tab is showing. A tab panel unmounts its
+          content when it is not selected, which threw away every unsaved edit
+          on this form the moment an administrator glanced at the Users tab —
+          with no warning, and no "unsaved changes" bar left to say so. The
+          other tabs are lists that reload cheaply; this one holds a draft.
+          `force-mount` only keeps the panel alive, it does not hide it, so the
+          inactive state does that.
+        -->
+        <TabsContent value="settings" force-mount class="data-[state=inactive]:hidden">
           <SettingsTab />
         </TabsContent>
         <TabsContent value="users">

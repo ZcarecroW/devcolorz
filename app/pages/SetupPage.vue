@@ -30,7 +30,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ApiError, api } from '@/lib/api'
+import { ApiError, api, setCsrfToken, type UserResponse } from '@/lib/api'
 import { useSessionStore } from '@/stores/session'
 
 interface SetupCheck {
@@ -63,6 +63,9 @@ interface SetupStatus {
 interface InstallResult {
   cronToken: string
   inviteToken: string
+  /** The new administrator, already signed in by the server. */
+  user?: UserResponse
+  csrf?: string
 }
 
 /**
@@ -109,7 +112,9 @@ const warningChecks = computed(() => failedChecks.value.filter((check) => !check
 const allPassed = computed(() => checks.value.length > 0 && blockingChecks.value.length === 0)
 const alreadyInstalled = computed(() => status.value?.installed === true)
 
-const verdict = computed(() => scorePassword(password.value, { context: [email.value, siteName.value] }))
+const verdict = computed(() =>
+  scorePassword(password.value, { minLength: MIN_PASSWORD, context: [email.value, siteName.value] }),
+)
 const passwordOk = computed(
   () => password.value.length >= MIN_PASSWORD && verdict.value.score > 0,
 )
@@ -161,7 +166,7 @@ async function install() {
   formError.value = null
   fieldErrors.value = {}
   try {
-    result.value = await api.post<InstallResult>(
+    const installed = await api.post<InstallResult>(
       '/setup/install',
       {
         challengeCode: challengeCode.value.trim(),
@@ -176,7 +181,14 @@ async function install() {
       // and the client's own refresh-and-retry handles it.
       { skipCsrf: true },
     )
+    result.value = installed
     password.value = ''
+    // The server signs the new administrator straight in and says so in the
+    // response. Only the two tokens used to be read out of it, so the header
+    // went on offering "Sign in" to someone who already was, and the admin
+    // console asked for the password that had been chosen a moment earlier.
+    if (installed.csrf) setCsrfToken(installed.csrf)
+    if (installed.user) session.user = installed.user
     // The rest of the app decides what to show from `meta`, so refresh it
     // before the user navigates anywhere.
     void session.loadMeta()
@@ -360,7 +372,10 @@ async function copy(text: string, key: string, message: string) {
         </div>
 
         <div class="flex flex-wrap gap-2 border-t pt-4">
-          <Button as-child>
+          <Button v-if="session.isAuthenticated" as-child>
+            <RouterLink :to="{ name: 'admin' }">Open the admin console</RouterLink>
+          </Button>
+          <Button v-else as-child>
             <RouterLink :to="{ name: 'login' }">Sign in as the administrator</RouterLink>
           </Button>
           <Button as-child variant="outline">

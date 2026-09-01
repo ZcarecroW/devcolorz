@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 import { RouterView, useRouter } from 'vue-router'
 import { blockedForAnonymous } from '@/router'
 import { Toaster } from '@/components/ui/sonner'
@@ -40,6 +40,27 @@ function applyInstanceDefaults() {
 
 let unbindSystem: (() => void) | null = null
 
+const main = useTemplateRef<HTMLElement>('main')
+
+/**
+ * Move focus to the new page after a navigation.
+ *
+ * Clicking a header link replaces everything under the header and leaves
+ * focus where it was — on a control that may no longer exist — so a keyboard
+ * user's next Tab started again from the top, and a screen reader said
+ * nothing about the page having changed. Focusing `main` restarts the tab
+ * order at the new content. The studio's own address-bar rewrites are left
+ * alone: they rename the route from `studio` to `shared` while a palette is
+ * being edited, and taking focus off a slider mid-drag would be worse than
+ * the silence.
+ */
+const SAME_PAGE = new Set(['studio', 'shared'])
+const unhookFocus = router.afterEach((to, from) => {
+  if (!from.name || to.name === from.name) return
+  if (SAME_PAGE.has(String(to.name)) && SAME_PAGE.has(String(from.name))) return
+  void nextTick(() => main.value?.focus({ preventScroll: true }))
+})
+
 onMounted(async () => {
   unbindSystem = theme.bindSystemPreference()
   theme.apply()
@@ -59,6 +80,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   unbindSystem?.()
+  unhookFocus()
 })
 </script>
 
@@ -81,7 +103,16 @@ onBeforeUnmount(() => {
       of empty document to scroll through. Positioning every scroll container
       keeps that overflow where it belongs.
     -->
-    <main class="scroll-slim relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <!--
+      Focusable, so a navigation can land focus on the new content, and with
+      no outline: it is a programmatic target, never something a person tabs
+      to, and a ring around the whole page would only read as a glitch.
+    -->
+    <main
+      ref="main"
+      tabindex="-1"
+      class="scroll-slim relative flex min-h-0 flex-1 flex-col overflow-y-auto outline-none"
+    >
       <RouterView v-slot="{ Component }">
         <component :is="Component" />
       </RouterView>

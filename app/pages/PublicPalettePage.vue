@@ -196,9 +196,13 @@ async function copy(text: string, key: string, message: string) {
   }
 }
 
+/** The endpoint toggles, so a second click while the first is in flight must wait. */
+let likeBusy = false
+
 async function toggleLike() {
   const item = detail.value
-  if (!item) return
+  if (!item || likeBusy) return
+  likeBusy = true
   const wasLiked = liked.value
   const previous = likes.value
   liked.value = !wasLiked
@@ -213,6 +217,8 @@ async function toggleLike() {
     liked.value = wasLiked
     likes.value = previous
     toast.error(err instanceof ApiError ? err.message : 'That like did not go through.')
+  } finally {
+    likeBusy = false
   }
 }
 
