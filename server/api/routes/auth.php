@@ -274,7 +274,13 @@ function registerAuthRoutes(Router $router): void
         if (array_key_exists('prefs', $body)) {
             $prefs = $v->json('prefs', 'Preferences', 16384);
             $fields[] = 'prefs_json = ?';
-            $params[] = json_encode($prefs, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            // An empty object decodes to an empty PHP array and would be
+            // written back as `[]`, which the client reads as a list. The read
+            // path corrects it; the stored value should not need correcting.
+            $params[] = json_encode(
+                $prefs === [] ? new \stdClass() : $prefs,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+            );
         }
         $v->stopOnError();
 
@@ -337,15 +343,44 @@ function registerAuthRoutes(Router $router): void
             Security::revokeTokens($userId, 'reset');
         });
 
-        $user = Db::one('SELECT email FROM users WHERE id = ?', [$userId]);
+        $user = Db::one('SELECT email, email_lower FROM users WHERE id = ?', [$userId]);
         if ($user !== null) {
+            // The mailbox has vouched for this person; a lockout earned by
+            // whoever was guessing should not keep them out of the new password.
+            RateLimit::clearLockout('email:' . hash('sha256', (string) $user['email_lower']));
             Mail::sendPasswordChangedNotice((string) $user['email']);
         }
         Audit::log('auth.reset', (string) $userId);
         Http::noContent();
     });
 
-    $router->post('/auth/change-password', static function (): void {
+    /**
+     * Check a signed-in user's password under the sign-in form's lockout.
+     *
+     * Changing the password or the address and deleting the account all ask
+     * for the current password, and each used to check it under nothing but
+     * the coarse per-address write budget — ninety guesses a minute for
+     * anyone holding a stolen session cookie, against an account whose
+     * sign-in form allows a handful. They now share the account's lockout:
+     * a wrong answer counts against it and a locked account is refused.
+     */
+    $requirePassword = static function (array $user, string $password, string $field, string $message): void {
+        $accountKey = 'email:' . hash('sha256', (string) $user['email_lower']);
+        $state = RateLimit::loginState($accountKey);
+        if ($state['locked']) {
+            $wait = max(1, (int) $state['until'] - time());
+            Http::problem(429, 'Too many attempts', 'Too many wrong passwords. Try again in ' . $wait . ' seconds.', [
+                'retryAfter' => $wait,
+            ]);
+        }
+        if (!Security::verifyPassword($password, (string) $user['password_hash'])) {
+            RateLimit::loginFailed($accountKey, Http::ipKey());
+            Http::validationFailed([$field => $message]);
+        }
+        RateLimit::loginSucceeded($accountKey, Http::ipKey());
+    };
+
+    $router->post('/auth/change-password', static function () use ($requirePassword): void {
         $user = Auth::require();
         $body = Http::body();
         $current = is_string($body['currentPassword'] ?? null) ? (string) $body['currentPassword'] : '';
@@ -353,9 +388,7 @@ function registerAuthRoutes(Router $router): void
         $next = $v->password('password', 'New password');
         $v->stopOnError();
 
-        if (!Security::verifyPassword($current, (string) $user['password_hash'])) {
-            Http::validationFailed(['currentPassword' => 'That is not your current password.']);
-        }
+        $requirePassword($user, $current, 'currentPassword', 'That is not your current password.');
 
         Db::transaction(static function () use ($user, $next): void {
             Db::run('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', [
@@ -371,7 +404,7 @@ function registerAuthRoutes(Router $router): void
         Http::noContent();
     });
 
-    $router->post('/auth/change-email', static function (): void {
+    $router->post('/auth/change-email', static function () use ($requirePassword): void {
         $user = Auth::require();
         $body = Http::body();
         $v = Validator::make($body);
@@ -379,9 +412,7 @@ function registerAuthRoutes(Router $router): void
         $password = is_string($body['password'] ?? null) ? (string) $body['password'] : '';
         $v->stopOnError();
 
-        if (!Security::verifyPassword($password, (string) $user['password_hash'])) {
-            Http::validationFailed(['password' => 'That is not your current password.']);
-        }
+        $requirePassword($user, $password, 'password', 'That is not your current password.');
         if (mb_strtolower($email, 'UTF-8') === (string) $user['email_lower']) {
             Http::validationFailed(['email' => 'That is already your address.']);
         }
@@ -399,15 +430,13 @@ function registerAuthRoutes(Router $router): void
 
     /* ---------------- account ---------------- */
 
-    $router->delete('/auth/account', static function (): void {
+    $router->delete('/auth/account', static function () use ($requirePassword): void {
         $user = Auth::require();
         if (!Settings::bool('auth.allowAccountDeletion', true)) {
             Http::forbidden('Self-service account deletion is disabled on this installation.');
         }
         $password = is_string(Http::input('password')) ? (string) Http::input('password') : '';
-        if (!Security::verifyPassword($password, (string) $user['password_hash'])) {
-            Http::validationFailed(['password' => 'That is not your password.']);
-        }
+        $requirePassword($user, $password, 'password', 'That is not your password.');
         if ((string) $user['role'] === 'admin' && Auth::countAdmins() <= 1) {
             Http::forbidden('You are the only administrator. Promote someone else before deleting your account.');
         }

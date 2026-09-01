@@ -152,6 +152,19 @@ final class RateLimit
         });
     }
 
+    /**
+     * Lift an account's lockout without recording an attempt.
+     *
+     * A password reset proves ownership through the mailbox, which is
+     * stronger evidence than a correct password — yet it left the lockout in
+     * place, so someone locked out by a guesser reset their password and
+     * still could not sign in until the timer ran out.
+     */
+    public static function clearLockout(string $accountKey): void
+    {
+        Db::run('DELETE FROM lockouts WHERE account_key = ?', [$accountKey]);
+    }
+
     public static function loginSucceeded(string $accountKey, string $ip): void
     {
         $now = time();

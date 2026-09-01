@@ -86,6 +86,12 @@ function registerPaletteRoutes(Router $router): void
         }
         $isOwner = Auth::id() !== null && (int) ($row['user_id'] ?? 0) === Auth::id();
         if (!$isOwner && (string) $row['visibility'] === 'private') {
+            // The same 404 whoever asks. Sending an anonymous caller through
+            // the sign-in check answered 401 for a private palette and 404
+            // for a missing one — the existence the 404 is there to hide.
+            if (Auth::id() === null) {
+                Http::notFound('No such palette.');
+            }
             $ownedOrFail($uuid);
         }
         Http::json(Palettes::summary($row));
@@ -233,19 +239,56 @@ function registerPaletteRoutes(Router $router): void
             Http::validationFailed(['items' => 'Sync at most 200 palettes at a time.']);
         }
 
+        // The same rules as a single create or edit. Sync used to apply none
+        // of them, so a document with no colours, forty-one of them, or a
+        // megabyte of title went straight into the table, past the instance's
+        // own palette quota.
+        $maxColors = Settings::int('content.maxColors', 40);
+        $quota = Settings::int('content.maxPalettesPerUser', 0);
+        $errors = [];
+        foreach ($items as $index => $item) {
+            if (!is_array($item) || !is_array($item['doc'] ?? null)) {
+                continue;
+            }
+            $hexes = Palettes::hexes($item['doc']);
+            if ($hexes === []) {
+                $errors["items.$index.doc"] = 'That palette contains no colors.';
+            } elseif (count($hexes) > $maxColors) {
+                $errors["items.$index.doc"] = 'Palettes are limited to ' . $maxColors . ' colors here.';
+            }
+            if (isset($item['title']) && (!is_string($item['title']) || mb_strlen($item['title']) > 120)) {
+                $errors["items.$index.title"] = 'Title must be 120 characters or fewer.';
+            }
+        }
+        if ($errors !== []) {
+            Http::validationFailed($errors);
+        }
+
         $applied = 0;
-        Db::transaction(static function () use ($items, $user, &$applied): void {
+        Db::transaction(static function () use ($items, $user, $quota, &$applied): void {
+            $owned = $quota > 0
+                ? (int) Db::value(
+                    'SELECT COUNT(*) FROM palettes WHERE user_id = ? AND deleted_at IS NULL',
+                    [(int) $user['id']],
+                )
+                : 0;
             foreach ($items as $item) {
                 if (!is_array($item) || !is_array($item['doc'] ?? null)) {
                     continue;
                 }
                 $uuid = is_string($item['uuid'] ?? null) ? (string) $item['uuid'] : '';
                 $updatedAt = is_numeric($item['updatedAt'] ?? null) ? (int) $item['updatedAt'] : time();
-                $title = is_string($item['title'] ?? null) ? (string) $item['title'] : 'Untitled palette';
+                $title = is_string($item['title'] ?? null) && trim($item['title']) !== ''
+                    ? trim((string) $item['title'])
+                    : 'Untitled palette';
 
                 $existing = $uuid !== '' ? Palettes::findByUuid($uuid) : null;
                 if ($existing === null) {
+                    if ($quota > 0 && $owned >= $quota) {
+                        Http::forbidden('You have reached the limit of ' . $quota . ' saved palettes.');
+                    }
                     Palettes::create((int) $user['id'], $title, '', $item['doc'], 'private');
+                    $owned++;
                     $applied++;
                     continue;
                 }

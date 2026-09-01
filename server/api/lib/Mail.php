@@ -65,7 +65,7 @@ final class Mail
      *
      * @return array{sent: int, failed: int, skipped: int}
      */
-    public static function flush(int $limit = 25, ?float $deadline = null): array
+    public static function flush(int $limit = 25, ?float $deadline = null, ?int $onlyId = null): array
     {
         $sent = 0;
         $failed = 0;
@@ -83,10 +83,19 @@ final class Mail
             $limit = min($limit, $cap - $sentLastHour);
         }
 
-        $rows = Db::all(
-            "SELECT * FROM mail_outbox WHERE status = 'queued' AND send_after <= ? ORDER BY id LIMIT ?",
-            [time(), max(1, $limit)],
-        );
+        // `$onlyId` narrows the batch to one message. The console's retry
+        // button re-queued its message and flushed the first five due, so
+        // pressing it on message 42 could send four others and report their
+        // outcome as its own.
+        $rows = $onlyId !== null
+            ? Db::all(
+                "SELECT * FROM mail_outbox WHERE status = 'queued' AND send_after <= ? AND id = ?",
+                [time(), $onlyId],
+            )
+            : Db::all(
+                "SELECT * FROM mail_outbox WHERE status = 'queued' AND send_after <= ? ORDER BY id LIMIT ?",
+                [time(), max(1, $limit)],
+            );
 
         foreach ($rows as $row) {
             if ($deadline !== null && microtime(true) > $deadline) {

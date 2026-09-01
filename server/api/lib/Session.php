@@ -256,9 +256,12 @@ final class Session
     {
         $idle = max(60, Settings::int('auth.sessionIdleMinutes', 43200)) * 60;
         $now = time();
+        // The cutoff is computed here rather than in SQL: `last_seen_at + ?`
+        // is an expression SQLite cannot look up in an index, so every prune
+        // walked the whole table.
         return Db::run(
-            'DELETE FROM sessions WHERE absolute_expires_at <= ? OR last_seen_at + ? <= ?',
-            [$now, $idle, $now],
+            'DELETE FROM sessions WHERE absolute_expires_at <= ? OR last_seen_at <= ?',
+            [$now, $now - $idle],
         )->rowCount();
     }
 }

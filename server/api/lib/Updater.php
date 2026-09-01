@@ -373,7 +373,7 @@ final class Updater
         if (function_exists('curl_init')) {
             $ch = curl_init($url);
             if ($ch !== false) {
-                curl_setopt_array($ch, [
+                $options = [
                     CURLOPT_RETURNTRANSFER => true,
                     CURLOPT_TIMEOUT        => $timeout,
                     CURLOPT_CONNECTTIMEOUT => 10,
@@ -385,9 +385,20 @@ final class Updater
                     // only a few times.
                     CURLOPT_FOLLOWLOCATION => true,
                     CURLOPT_MAXREDIRS      => 5,
-                    CURLOPT_PROTOCOLS_STR  => 'https',
-                    CURLOPT_REDIR_PROTOCOLS_STR => 'https',
-                ]);
+                ];
+                // The string form of the protocol options arrived in PHP 8.3,
+                // and the bitmask form is deprecated from 8.4. This application
+                // supports 8.2, where naming the newer constants threw before
+                // curl was even called — so every update check on an 8.2 host
+                // failed, and the self-test had reported it able to check.
+                if (defined('CURLOPT_PROTOCOLS_STR')) {
+                    $options[CURLOPT_PROTOCOLS_STR] = 'https';
+                    $options[CURLOPT_REDIR_PROTOCOLS_STR] = 'https';
+                } else {
+                    $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTPS;
+                    $options[CURLOPT_REDIR_PROTOCOLS] = CURLPROTO_HTTPS;
+                }
+                curl_setopt_array($ch, $options);
                 $response = curl_exec($ch);
                 $ok = $response !== false && curl_getinfo($ch, CURLINFO_RESPONSE_CODE) === 200;
                 return $ok ? (string) $response : null;
@@ -448,10 +459,13 @@ final class Updater
 
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $name = (string) $zip->getNameIndex($i);
-            if ($name === '' || str_ends_with($name, '/')) {
+            if ($name === '') {
                 continue;
             }
-            if (self::safeRelativePath($name) === null) {
+            // A directory entry is checked like a file: skipping it let an
+            // entry such as `../x/` through a loop whose whole point is that
+            // one bad name aborts the update.
+            if (self::safeRelativePath(rtrim($name, '/')) === null) {
                 $zip->close();
                 return 'The archive contains an entry with an unsafe path (' . $name . '). Nothing was installed.';
             }
@@ -560,8 +574,9 @@ final class Updater
                 continue;
             }
             // config.php holds the secrets and storage/ holds the database.
-            // Neither is ever part of an update.
-            $top = explode('/', $relative)[0];
+            // Neither is ever part of an update. Compared case-insensitively:
+            // on a filesystem that folds case, `Config.php` is the same file.
+            $top = strtolower(explode('/', $relative)[0]);
             if (in_array($top, self::PROTECTED, true)) {
                 continue;
             }

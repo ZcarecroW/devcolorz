@@ -204,6 +204,13 @@ final class Settings
      * the key's own default and rejected if they cannot be — and the caller is
      * told which, rather than the write half-succeeding in silence.
      *
+     * All or nothing: when any key is refused, none is written. The accepted
+     * keys used to be saved before the refusal was reported, so "some fields
+     * need attention" described a save that had already half happened — the
+     * console showed every field as still unsaved while most of them were
+     * live, and its Discard button reverted a form whose changes were already
+     * in effect.
+     *
      * @param  array<string, mixed> $values
      * @return array<string, string> Rejected keys, mapped to the reason.
      */
@@ -247,14 +254,47 @@ final class Settings
                     $rejected[$key] = 'Must be text.';
                     continue;
                 }
-                $accepted[$key] = (string) $value;
+                $text = (string) $value;
+                if ($key === 'site.baseUrl') {
+                    // Mail links and the exposure probe are built from this
+                    // address, and with it blank they fall back to whatever
+                    // Host header the request carried — which on shared
+                    // hosting is whatever the caller wrote. It is set at
+                    // install, and clearing it would reopen that door.
+                    $text = rtrim(trim($text), '/');
+                    $scheme = strtolower((string) parse_url($text, PHP_URL_SCHEME));
+                    if ($text === '' || !in_array($scheme, ['http', 'https'], true) || !filter_var($text, FILTER_VALIDATE_URL)) {
+                        $rejected[$key] = 'Must be the full address of this site, starting with http:// or https://.';
+                        continue;
+                    }
+                }
+                $accepted[$key] = $text;
                 continue;
             }
-            if (is_array($default) && !is_array($value)) {
-                $rejected[$key] = 'Must be an object.';
-                continue;
+            if (is_array($default)) {
+                if (!is_array($value)) {
+                    $rejected[$key] = 'Must be an object.';
+                    continue;
+                }
+                // A rate-limit bucket has a shape. Anything else stored under
+                // one of these keys was silently replaced by the built-in
+                // fallback at read time, with no word to the administrator.
+                if (isset($default['capacity'], $default['perSeconds'])) {
+                    $capacity = $value['capacity'] ?? null;
+                    $window = $value['perSeconds'] ?? null;
+                    if (!is_numeric($capacity) || !is_numeric($window) || (int) $capacity < 1 || (int) $window < 1) {
+                        $rejected[$key] = 'Needs a capacity and a window in seconds, both at least 1.';
+                        continue;
+                    }
+                    $accepted[$key] = ['capacity' => (int) $capacity, 'perSeconds' => (int) $window];
+                    continue;
+                }
             }
             $accepted[$key] = $value;
+        }
+
+        if ($rejected !== []) {
+            return $rejected;
         }
 
         if ($accepted !== []) {

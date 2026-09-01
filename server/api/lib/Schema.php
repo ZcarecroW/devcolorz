@@ -223,6 +223,19 @@ final class Schema
                         ON users(display_name_lower) WHERE display_name_lower != ''",
                 ],
             ],
+            [
+                'id' => '005_prune_indexes',
+                'sql' => [
+                    // The prune job deletes by these columns and none of them
+                    // led an index, so every run scanned the three tables the
+                    // application writes to most — on a busy install, for
+                    // longer than the cron budget it shares with the mail
+                    // queue.
+                    'CREATE INDEX IF NOT EXISTS idx_la_ts ON login_attempts(ts)',
+                    'CREATE INDEX IF NOT EXISTS idx_sessions_seen ON sessions(last_seen_at)',
+                    'CREATE INDEX IF NOT EXISTS idx_tokens_used ON tokens(used_at)',
+                ],
+            ],
         ];
     }
 

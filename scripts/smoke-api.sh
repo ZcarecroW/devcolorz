@@ -82,6 +82,9 @@ if [ "$INSTALLED" = "false" ]; then
     status=$(req POST /api/setup/install "{\"challengeCode\":\"$CODE\",\"email\":\"admin@example.com\",\"password\":\"correct horse battery staple\",\"displayName\":\"Admin\",\"siteName\":\"DevColorz Test\"}")
     check "POST /api/setup/install" 200 "$status"
     CSRF=$(json csrf)
+    # The cron token is shown once, here. It is the only way the scheduled
+    # entry point can be exercised further down.
+    CRON=$(json cronToken)
 
     status=$(req POST /api/setup/install "{\"challengeCode\":\"$CODE\",\"email\":\"b@example.com\",\"password\":\"correct horse battery staple\",\"displayName\":\"B\",\"siteName\":\"X\"}")
     check "install refuses to run twice" 410 "$status"
@@ -132,6 +135,16 @@ check "cron.php without a key 404s" 404 "$status"
 status=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/cron.php?k=definitely-not-the-token")
 check "cron.php with a wrong key 404s" 404 "$status"
 
+# cron.php has its own bootstrap, lock file and token check, and nothing else
+# in this script goes through it: the console's "run job" button reaches the
+# same jobs by a different door. Only a fresh install knows the token.
+if [ -n "${CRON:-}" ]; then
+  status=$(curl -sS -o "$BODY_FILE" -w '%{http_code}' -H "X-Cron-Key: $CRON" "$BASE/cron.php")
+  check "cron.php with the real key runs the jobs" 200 "$status"
+else
+  say "  skip cron.php with the real key (not a fresh install, token unknown)"
+fi
+
 say ""
 say "palettes"
 status=$(req POST /api/palettes '{"title":"Smoke test","doc":{"colors":["#264653","#2a9d8f","#e9c46a","#f4a261","#e76f51"]},"visibility":"private"}')
@@ -141,6 +154,14 @@ SLUG=$(json slug)
 
 status=$(req GET "/api/palettes/$UUID")
 check "GET /api/palettes/{uuid}" 200 "$status"
+
+# A private palette is a missing palette to anyone else — the same 404 an
+# unknown uuid gets, not a 401 that confirms there is something to sign in for.
+status=$(curl -sS -o /dev/null -w '%{http_code}' -H 'Accept: application/json' "$BASE/api/palettes/$UUID")
+check "a private palette is 404 to an anonymous caller" 404 "$status"
+
+status=$(req POST /api/palettes/sync '{"items":[{"doc":{"colors":[]}}]}')
+check "sync refuses a palette with no colors" 422 "$status"
 
 status=$(req GET /api/palettes)
 check "GET /api/palettes" 200 "$status"
@@ -189,6 +210,22 @@ check "midnight is a valid hour to check at" 200 "$status"
 
 status=$(req PATCH /api/admin/settings '{"updates.checkHour":"noon"}')
 check "a non-numeric check hour is refused" 422 "$status"
+
+# All or nothing: a refused key must not leave its neighbours saved.
+status=$(req PATCH /api/admin/settings '{"site.name":"Half saved","auth.minPasswordLength":0}')
+check "a save with one bad field is refused" 422 "$status"
+req GET /api/admin/settings >/dev/null
+if grep -q '"Half saved"' "$BODY_FILE"; then
+  check "a refused save writes none of its fields" "nothing-saved" "partially-saved"
+else
+  check "a refused save writes none of its fields" "nothing-saved" "nothing-saved"
+fi
+
+status=$(req PATCH /api/admin/settings '{"site.baseUrl":""}')
+check "a blank base URL is refused" 422 "$status"
+
+status=$(req PATCH /api/admin/settings '{"ratelimit.login":{"capacity":"lots"}}')
+check "a malformed rate-limit bucket is refused" 422 "$status"
 
 # The updater writes these; an administrator must not be able to forge them.
 req PATCH /api/admin/settings '{"updates.latest":{"version":"99.0.0"}}' >/dev/null

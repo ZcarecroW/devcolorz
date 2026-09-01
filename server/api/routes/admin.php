@@ -397,7 +397,8 @@ function registerAdminRoutes(Router $router): void
             time(),
             (int) $args['id'],
         ]);
-        $result = Mail::flush(5);
+        // This message and no other, so the result describes the one retried.
+        $result = Mail::flush(1, null, (int) $args['id']);
         Audit::log('admin.mail.retry', (string) $args['id'], $result);
         Http::json($result);
     });
