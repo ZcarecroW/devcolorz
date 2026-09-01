@@ -371,7 +371,7 @@ export const ALGORITHM_HINTS: Record<ExtractAlgorithm, string> = {
   'median-cut':
     'Repeatedly splits the color space along its widest axis until there are N boxes, then averages each. The classic GIF-quantisation algorithm. Faster than k-means and guarantees the whole range of the image is covered, but the colors it returns are less characteristic.',
   vibrant:
-    'Clusters first, then ranks the clusters by how interesting they are rather than how much of the image they cover — favouring saturated, mid-lightness colors and rejecting near-duplicates. A grey street with one red door gives you the red door. This is usually the one you want for brand work.',
+    'Clusters first, then ranks the clusters by how interesting they are rather than how much of the image they cover — favoring saturated, mid-lightness colors and rejecting near-duplicates. A gray street with one red door gives you the red door. This is usually the one you want for brand work.',
 }
 
 export const EXTRACT_SORT_LABELS: Record<ExtractOptions['sort'], string> = {

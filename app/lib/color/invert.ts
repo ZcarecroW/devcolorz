@@ -138,18 +138,23 @@ function radixLightness(l: number, floor: number, ceiling: number): number {
    * press. Monotonically non-increasing in `l`, which is what makes a
    * descending light ramp produce an ascending dark one.
    *
-   * The anchors are clamped once, in a chain, rather than each band being
-   * clamped where it returns. Both bounds are user-controlled — the export
-   * panel's floor reaches 0.4 and its ceiling bottoms out at 0.6 — so fixed
-   * anchors outside that window reversed the ramp again at one end, while
-   * clamping per band collapsed several steps onto one value at the other.
+   * The anchors are fractions of the band, not fixed numbers. Both bounds are
+   * user-controlled — the export panel's floor reaches 0.4 and its ceiling
+   * bottoms out at 0.6 — and fixed anchors clamped into that window landed on
+   * top of each other: at a floor of 0.4 and a ceiling of 0.6, eight light
+   * inputs between 0.4 and 0.75 came out at one dark value, so four
+   * consecutive Tailwind steps were the same colour. Strictly increasing
+   * fractions cannot coincide however narrow the band is, and at the default
+   * floor and ceiling they reproduce the old anchors — 0.20, 0.275, 0.45,
+   * 0.50 and 0.72 — exactly.
    */
   const top = Math.max(floor, ceiling)
-  const a90 = Math.min(top, floor + 0.06) // where the background band ends
-  const a75 = Math.min(top, a90 + 0.075) // component backgrounds
-  const a55 = Math.min(top, Math.max(a75, 0.45)) // borders
-  const a40 = Math.min(top, Math.max(a55, 0.5)) // solid brand: nearly flat
-  const a25 = Math.min(top, Math.max(a40, 0.72)) // low-contrast text
+  const span = top - floor
+  const a90 = floor + 0.07595 * span // where the background band ends
+  const a75 = floor + 0.17089 * span // component backgrounds
+  const a55 = floor + 0.39241 * span // borders
+  const a40 = floor + 0.4557 * span // solid brand: nearly flat
+  const a25 = floor + 0.73418 * span // low-contrast text
 
   if (l >= 0.9) return floor + (1 - l) * ((a90 - floor) / 0.1)
   if (l >= 0.75) return a90 + (0.9 - l) * ((a75 - a90) / 0.15)
@@ -210,6 +215,8 @@ function adaptChroma(chroma: number, hue: number, fromL: number, toL: number, am
 function contrastPreserveLightness(
   color: Oklch,
   options: InvertOptions,
+  floor: number,
+  ceiling: number,
 ): number {
   const target = score(color, options.lightBackground, options.metric)
   const hue = color.h ?? 0
@@ -217,7 +224,7 @@ function contrastPreserveLightness(
   let best = 1 - (color.l ?? 0.5)
   let bestDelta = Infinity
   // 1% steps over the legal band is plenty: the eye cannot resolve finer.
-  for (let l = options.darkFloor; l <= options.darkCeiling; l += 0.01) {
+  for (let l = floor; l <= ceiling + 1e-9; l += 0.01) {
     const candidate: Oklch = { mode: 'oklch', l, c: Math.min(chroma, maxChroma(l, hue)), h: hue }
     const delta = Math.abs(score(candidate, options.darkBackground, options.metric) - target)
     if (delta < bestDelta) {
@@ -226,6 +233,26 @@ function contrastPreserveLightness(
     }
   }
   return best
+}
+
+/**
+ * The dark band, in order.
+ *
+ * The floor and the ceiling are two independent inputs, so nothing stops a
+ * caller handing them over crossed. Every strategy loops or clamps between
+ * them, and with the bounds reversed the contrast solver ran zero iterations
+ * and quietly returned the naive flip it had been asked to improve on.
+ */
+function band(options: InvertOptions): [floor: number, ceiling: number] {
+  const lo = Math.min(options.darkFloor, options.darkCeiling)
+  const hi = Math.max(options.darkFloor, options.darkCeiling)
+  return [Math.min(1, Math.max(0, lo)), Math.min(1, Math.max(0, hi))]
+}
+
+/** The naive HSL flip, warts and all, so it can be compared with the rest. */
+function hslFlip(base: Oklch, gamut: GamutStrategy): Oklch {
+  const hsl = toHsl(base) as { h?: number; s: number; l: number }
+  return mapToGamut({ mode: 'hsl', h: hsl.h ?? 0, s: hsl.s, l: 1 - hsl.l } as never, gamut)
 }
 
 /** Derive the dark-mode counterpart of a light-mode color. */
@@ -239,29 +266,29 @@ export function toDark(color: ColorInput, options: Partial<InvertOptions> = {}):
   if (opts.strategy === 'none') return base
 
   if (opts.strategy === 'hsl-flip') {
-    // Deliberately faithful to the naive approach, warts and all, so users
-    // can see for themselves why the tooltip warns against it.
-    const hsl = toHsl(base) as { h?: number; s: number; l: number }
-    return mapToGamut({ mode: 'hsl', h: hsl.h ?? 0, s: hsl.s, l: 1 - hsl.l } as never, opts.gamut)
+    // Deliberately faithful to the naive approach so users can see for
+    // themselves why the tooltip warns against it.
+    return hslFlip(base, opts.gamut)
   }
 
+  const [floor, ceiling] = band(opts)
   let toL: number
   switch (opts.strategy) {
     case 'oklch-flip':
       toL = 1 - fromL
       break
     case 'radix':
-      toL = radixLightness(fromL, opts.darkFloor, opts.darkCeiling)
+      toL = radixLightness(fromL, floor, ceiling)
       break
     case 'material':
-      toL = materialLightness(fromL, opts.darkFloor, opts.darkCeiling)
+      toL = materialLightness(fromL, floor, ceiling)
       break
     case 'contrast-preserve':
-      toL = contrastPreserveLightness(base, opts)
+      toL = contrastPreserveLightness(base, opts, floor, ceiling)
       break
     case 'oklch-curve':
     default:
-      toL = curveLightness(fromL, chroma, opts.darkFloor, opts.darkCeiling)
+      toL = curveLightness(fromL, chroma, floor, ceiling)
       break
   }
   toL = Math.min(1, Math.max(0, toL))
@@ -286,14 +313,17 @@ export function toLight(color: ColorInput, options: Partial<InvertOptions> = {})
   const hue = base.h ?? 0
   const chroma = base.c ?? 0
   if (opts.strategy === 'none') return base
+  // The same naive flip in both directions: it used to be an HSL flip going
+  // dark and an OKLCH flip coming back, so one named strategy was two
+  // different algorithms depending on which way it was asked.
+  if (opts.strategy === 'hsl-flip') return hslFlip(base, opts.gamut)
 
   // Mirror of the dark path: expand out of the dark band, then flip.
-  const t = (fromL - opts.darkFloor) / (opts.darkCeiling - opts.darkFloor || 1)
+  const [floor, ceiling] = band(opts)
+  const t = (fromL - floor) / (ceiling - floor || 1)
   const clamped = Math.min(1, Math.max(0, t))
   const toL =
-    opts.strategy === 'oklch-flip' || opts.strategy === 'hsl-flip'
-      ? 1 - fromL
-      : Math.min(0.99, Math.max(0.02, 1 - clamped))
+    opts.strategy === 'oklch-flip' ? 1 - fromL : Math.min(0.99, Math.max(0.02, 1 - clamped))
   const toC = adaptChroma(chroma, hue, fromL, toL, opts.chromaCompensation)
   return mapToGamut({ mode: 'oklch', l: toL, c: toC, h: hue }, opts.gamut)
 }

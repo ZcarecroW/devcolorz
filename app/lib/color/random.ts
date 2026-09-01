@@ -78,7 +78,10 @@ function gaussian(rng: Rng): number {
  * Draw a value in [0, 1] shaped by the chosen distribution.
  *
  * `index` and `count` let sequence-aware distributions (golden, stratified)
- * spread a whole batch evenly instead of clustering by chance.
+ * spread a whole batch evenly instead of clustering by chance. `salt` tells
+ * two channels of the same colour apart: the golden sequence is a pure
+ * function of the seed and the index, so without it two channels both set to
+ * it moved in lockstep and the palette ran along one diagonal of the space.
  */
 export function sample(
   rng: Rng,
@@ -86,6 +89,7 @@ export function sample(
   spread: number,
   index: number,
   count: number,
+  salt = 0,
 ): number {
   switch (distribution) {
     case 'gaussian': {
@@ -94,15 +98,17 @@ export function sample(
       return Math.min(1, Math.max(0, 0.5 + gaussian(rng) * sigma))
     }
     case 'edges': {
-      // Bathtub: pushes values toward both ends of the range.
+      // Bathtub: pushes values toward both ends of the range. The exponent is
+      // kept at or above 1, since below it the curve leaves [0, 1] altogether.
       const t = rng.next()
-      const bent = t < 0.5 ? 0.5 * Math.pow(2 * t, 1 + 2 * spread) : 1 - 0.5 * Math.pow(2 - 2 * t, 1 + 2 * spread)
-      return bent
+      const exponent = 1 + 2 * Math.max(0, spread)
+      const bent = t < 0.5 ? 0.5 * Math.pow(2 * t, exponent) : 1 - 0.5 * Math.pow(2 - 2 * t, exponent)
+      return Math.min(1, Math.max(0, bent))
     }
     case 'golden': {
       // Golden-ratio additive recurrence: maximally spread, no clumping.
       const offset = rng.seed / 4294967296
-      return (offset + index * GOLDEN) % 1
+      return (offset + salt * 0.381966011 + index * GOLDEN) % 1
     }
     case 'stratified': {
       // Split the range into `count` equal bins, jitter within each.
@@ -258,19 +264,19 @@ export function randomColor(
 ): Oklch {
   const def = getSpace(constraints.space)
   const values: Record<string, number> = {}
-  for (const ch of def.channels) {
+  def.channels.forEach((ch, ordinal) => {
     const constraint = constraints.channels[ch.key]
     if (!constraint) {
       values[ch.key] = (ch.min + ch.max) / 2
-      continue
+      return
     }
     if (constraint.locked) {
       values[ch.key] = constraint.value
-      continue
+      return
     }
-    const t = sample(rng, constraint.distribution, constraint.spread, index, count)
+    const t = sample(rng, constraint.distribution, constraint.spread, index, count, ordinal)
     values[ch.key] = mapToRange(t, constraint.range, ch.cyclic, ch.max)
-  }
+  })
   const raw = fromChannelValues(constraints.space, values)
   return mapToGamut(raw, constraints.gamut)
 }
@@ -295,7 +301,13 @@ export function generatePalette(options: GenerateOptions): Oklch[] {
     let bestDistance = -1
     const maxAttempts = target > 0 ? 40 : 1
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const candidate = randomColor(rng, constraints, i, count)
+      // Each retry moves a whole batch further along the sequence. The golden
+      // distribution never draws from the generator, so retrying it at the
+      // same index produced the same value forty times over and the distance
+      // requirement could not be met on that channel at all. A later point in
+      // the sequence is just as evenly spread, and the stratified bins repeat
+      // every `count`, so they are unaffected.
+      const candidate = randomColor(rng, constraints, i + attempt * count, count)
       if (target <= 0) {
         best = candidate
         break

@@ -189,17 +189,31 @@ function chromaAt(t: number, seedChroma: number, falloff: number): number {
   return seedChroma * Math.max(0.05, envelope)
 }
 
-/** Solve for the lightness whose contrast against `background` hits `target`. */
+/**
+ * Solve for the lightness whose contrast against `background` hits `target`.
+ *
+ * The search stays on one side of the surface. Contrast is symmetric — a
+ * colour a little lighter than a mid-gray surface scores the same as one a
+ * little darker — so a scan over the whole range could satisfy a step on
+ * whichever side happened to come closest, and against a gray reference the
+ * ramp doubled back on itself: four steps darkened, the next climbed to
+ * near-white. Below a light surface contrast only grows as lightness falls,
+ * and above a dark one only as it rises, so confining the scan to that side
+ * keeps the solved steps in the order their targets are in.
+ */
 function lightnessForContrast(
   hue: number,
   chroma: number,
   target: number,
   options: ScaleOptions,
-  preferDark: boolean,
 ): number {
-  let best = preferDark ? 0.2 : 0.9
+  const surface = toOklch(options.background).l ?? 1
+  const below = surface >= 0.5
+  const lo = below ? 0.02 : Math.max(0.02, surface)
+  const hi = below ? Math.min(0.995, surface) : 0.995
+  let best = below ? hi : lo
   let bestDelta = Infinity
-  for (let l = 0.02; l <= 0.995; l += 0.005) {
+  for (let l = lo; l <= hi + 1e-9; l += 0.005) {
     const candidate: Oklch = { mode: 'oklch', l, c: Math.min(chroma, maxChroma(l, hue)), h: hue }
     const delta = Math.abs(score(candidate, options.background, options.metric) - target)
     if (delta < bestDelta - 1e-9) {
@@ -229,22 +243,26 @@ export function generateScale(seed: ColorInput, options: Partial<ScaleOptions> =
         )
       : Math.round(opts.anchor * (count - 1))
 
+  // An exponent of zero maps every step to the same point, and a negative one
+  // sends the first step to infinity; neither is a ramp.
+  const curve = Math.max(0.05, opts.curve)
+
   const stops: ScaleStop[] = []
   for (let i = 0; i < count; i++) {
     const t = count === 1 ? 0.5 : i / (count - 1)
-    const curved = Math.pow(t, opts.curve)
+    const curved = Math.pow(t, curve)
     const chroma = chromaAt(curved, seedChroma, opts.chromaFalloff)
 
     let l: number
     if (opts.mode === 'contrast') {
-      l = lightnessForContrast(hue, chroma, targets[i], opts, t > 0.5)
+      l = lightnessForContrast(hue, chroma, targets[i], opts)
     } else {
       l = opts.lightEnd + curved * (opts.darkEnd - opts.lightEnd)
       if (opts.mode === 'hybrid') {
         const candidate: Oklch = { mode: 'oklch', l, c: Math.min(chroma, maxChroma(l, hue)), h: hue }
         const achieved = score(candidate, opts.background, opts.metric)
         if (achieved < targets[i]) {
-          l = lightnessForContrast(hue, chroma, targets[i], opts, t > 0.5)
+          l = lightnessForContrast(hue, chroma, targets[i], opts)
         }
       }
     }
@@ -317,7 +335,7 @@ export const SCALE_MODE_HINTS: Record<ScaleMode, string> = {
 
 export const SCALE_PRESET_HINTS: Record<ScalePreset, string> = {
   tailwind:
-    'Eleven steps named 50 through 950, the convention Tailwind established and most of the ecosystem now follows. 500 is the base color. Best choice if your codebase is Tailwind or if you want the naming everyone already recognises.',
+    'Eleven steps named 50 through 950, the convention Tailwind established and most of the ecosystem now follows. 500 is the base color. Best choice if your codebase is Tailwind or if you want the naming everyone already recognizes.',
   radix:
     'Twelve steps where each number has a defined job: 1 is the app background, 3–5 are component fills, 6–8 are borders, 9 is the solid brand color, 11 is low-contrast text and 12 is high-contrast text. Harder to learn, dramatically easier to build components with, because you stop guessing which step to use.',
   material:

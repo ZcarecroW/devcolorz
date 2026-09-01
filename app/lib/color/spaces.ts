@@ -54,7 +54,7 @@ export const SPACES: Record<SpaceId, SpaceDef> = {
         displayScale: 100,
         unit: '',
         precision: 1,
-        hint: 'Colorfulness, unbounded in theory. 0 is grey; sRGB tops out near 0.37 and only for a few hues. Pushing chroma past what the gamut allows is what makes naive palettes look muddy.',
+        hint: 'Colorfulness, unbounded in theory. 0 is gray; sRGB tops out near 0.37 and only for a few hues. Pushing chroma past what the gamut allows is what makes naive palettes look muddy.',
       },
       hue('Angle on the perceptual color wheel. 30° ≈ orange, 145° ≈ green, 260° ≈ blue. Hue steps here stay visually even, which HSL hue steps do not.'),
     ],
@@ -94,7 +94,7 @@ export const SPACES: Record<SpaceId, SpaceDef> = {
     wideGamut: false,
     channels: [
       hue('Perceptual hue angle, same wheel as OKLCH.'),
-      { key: 's', label: 'S', name: 'Saturation', min: 0, max: 1, step: 0.001, cyclic: false, displayScale: 100, unit: '%', precision: 0, hint: 'How far from grey, as a fraction of the maximum at this value and hue.' },
+      { key: 's', label: 'S', name: 'Saturation', min: 0, max: 1, step: 0.001, cyclic: false, displayScale: 100, unit: '%', precision: 0, hint: 'How far from gray, as a fraction of the maximum at this value and hue.' },
       { key: 'v', label: 'V', name: 'Value', min: 0, max: 1, step: 0.001, cyclic: false, displayScale: 100, unit: '%', precision: 0, hint: 'Brightness of the most colorful version of this hue.' },
     ],
   },
@@ -132,7 +132,7 @@ export const SPACES: Record<SpaceId, SpaceDef> = {
     wideGamut: false,
     channels: [
       hue('Position on the RGB color wheel. 0° red, 120° green, 240° blue — mathematically even, perceptually not.'),
-      { key: 's', label: 'S', name: 'Saturation', min: 0, max: 1, step: 0.01, cyclic: false, displayScale: 100, unit: '%', precision: 0, hint: 'Distance from grey. 0% grey, 100% fully saturated.' },
+      { key: 's', label: 'S', name: 'Saturation', min: 0, max: 1, step: 0.01, cyclic: false, displayScale: 100, unit: '%', precision: 0, hint: 'Distance from gray. 0% gray, 100% fully saturated.' },
       { key: 'l', label: 'L', name: 'Lightness', min: 0, max: 1, step: 0.01, cyclic: false, displayScale: 100, unit: '%', precision: 0, hint: 'Geometric lightness, not perceived lightness. 50% is the most saturated point for any hue.' },
     ],
   },

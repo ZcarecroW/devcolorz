@@ -14,9 +14,9 @@ import {
   wcag,
   wcagLevel,
 } from './contrast'
-import { cssGamutMap, deltaEOK, isInGamut, maxChroma } from './gamut'
+import { cssGamutMap, deltaEOK, isInGamut, mapToGamut, maxChroma } from './gamut'
 import { harmony, fromRybHue, rotateHue, toRybHue } from './harmony'
-import { toDark } from './invert'
+import { toDark, toLight } from './invert'
 import { solveAlpha, composite } from './alpha'
 import { generateScale } from './scale'
 import {
@@ -26,6 +26,8 @@ import {
   generatePalette,
   inRange,
   mapToRange,
+  randomColor,
+  sample,
 } from './random'
 import { assignRoles, auditRoles } from './roles'
 import { cvdSafetyScore, simulate } from './cvd'
@@ -484,7 +486,7 @@ describe('naming', () => {
   it('describes colors structurally', () => {
     expect(describeColor('#000000')).toBe('Black')
     expect(describeColor('#ffffff')).toBe('White')
-    expect(describeColor('#808080')).toContain('grey')
+    expect(describeColor('#808080')).toContain('gray')
     expect(describeColor('#ff0000').toLowerCase()).toContain('red')
     expect(describeColor('#0000ff').toLowerCase()).toMatch(/blue|indigo|violet/)
   })
@@ -873,5 +875,111 @@ describe('faintestReadable — chrome that stays legible on any swatch', () => {
     const bg = mustParse('#3b82f6')
     const blended = inkOver(bestBlackOrWhite(bg), bg, 0)
     expect(Math.abs(apca(blended, bg))).toBe(0)
+  })
+})
+
+/*
+ * Regressions from the 1.6.0 audit. Each of these reproduced against the code
+ * as it was, so they are kept as the record of what the fix was for.
+ */
+describe('the contrast solver stays on one side of the surface', () => {
+  it('keeps a contrast-solved ramp in order against a mid-gray surface', () => {
+    const stops = generateScale('#888888', {
+      preset: 'tailwind',
+      mode: 'contrast',
+      metric: 'wcag',
+      pinSeed: false,
+      background: { mode: 'oklch', l: 0.5, c: 0, h: 0 },
+    })
+    for (let i = 1; i < stops.length; i++) {
+      expect(stops[i].color.l ?? 0).toBeLessThanOrEqual((stops[i - 1].color.l ?? 0) + 1e-9)
+    }
+  })
+
+  it('does not collapse a scale under a zero or negative curve', () => {
+    for (const curve of [0, -1]) {
+      const stops = generateScale('#3b82f6', { curve, pinSeed: false })
+      expect(new Set(stops.map((s) => (s.color.l ?? 0).toFixed(3))).size).toBe(stops.length)
+    }
+  })
+})
+
+describe('dark-mode strategies in a narrow or crossed band', () => {
+  it('keeps every Radix dark step distinct at the narrowest band the panel offers', () => {
+    const inputs = Array.from({ length: 19 }, (_, i) => 0.05 + i * 0.05)
+    const outputs = inputs.map(
+      (l) => toDark({ mode: 'oklch', l, c: 0, h: 0 }, { strategy: 'radix', darkFloor: 0.4, darkCeiling: 0.6 }).l ?? 0,
+    )
+    expect(new Set(outputs.map((v) => v.toFixed(4))).size).toBe(inputs.length)
+    for (let i = 1; i < outputs.length; i++) expect(outputs[i]).toBeLessThan(outputs[i - 1])
+  })
+
+  it('solves contrast-preserve inside the band even when the bounds are crossed', () => {
+    const source = { mode: 'oklch', l: 0.3, c: 0.15, h: 250 } as const
+    const straight = toDark(source, { strategy: 'contrast-preserve', darkFloor: 0.14, darkCeiling: 0.93 })
+    const crossed = toDark(source, { strategy: 'contrast-preserve', darkFloor: 0.93, darkCeiling: 0.14 })
+    expect(crossed.l).toBeCloseTo(straight.l ?? 0, 6)
+  })
+
+  it('flips HSL the same way in both directions', () => {
+    const source = parseColor('#9fc5e8')!
+    const dark = toDark(source, { strategy: 'hsl-flip' })
+    const back = toLight(dark, { strategy: 'hsl-flip' })
+    expect(deltaEOK(back, source)).toBeLessThan(0.02)
+  })
+})
+
+describe('wheels and gamuts that used to be the same wheel and the same gamut', () => {
+  it('rotates on the HSL wheel differently from the perceptual one', () => {
+    expect(Math.abs(rotateHue(0, 90, 'hsl') - rotateHue(0, 90, 'oklch'))).toBeGreaterThan(1)
+    expect(rotateHue(120, 360, 'hsl')).toBeCloseTo(120, 3)
+    // Blue's complement on the digital wheel is yellow, roughly hue 100 in OKLCH.
+    expect(rotateHue(264, 180, 'hsl')).toBeGreaterThan(85)
+    expect(rotateHue(264, 180, 'hsl')).toBeLessThan(115)
+  })
+
+  it('gives a split complementary at zero spread distinct colours', () => {
+    const colors = harmony('#3b82f6', 'split-complementary', { count: 5, angle: 0, vary: false })
+    expect(new Set(colors.map((c) => formatColor(c, 'hex'))).size).toBe(5)
+  })
+
+  it('keeps more chroma when mapping into Display P3 than into sRGB', () => {
+    const vivid = { mode: 'oklch', l: 0.65, c: 0.34, h: 29 } as const
+    for (const strategy of ['css4', 'clip', 'chroma-reduce'] as const) {
+      const srgb = mapToGamut(vivid, strategy, 'srgb')
+      const p3 = mapToGamut(vivid, strategy, 'p3')
+      expect(p3.c ?? 0).toBeGreaterThan((srgb.c ?? 0) + 0.02)
+      expect(isInGamut(p3, 'p3')).toBe(true)
+    }
+  })
+})
+
+describe('sampling stays inside the range and keeps moving', () => {
+  it('keeps the edges distribution inside the unit interval whatever the spread', () => {
+    const rng = createRng(7)
+    for (let i = 0; i < 50; i++) {
+      const value = sample(rng, 'edges', -3, i, 50)
+      expect(value).toBeGreaterThanOrEqual(0)
+      expect(value).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('does not move two golden channels in lockstep', () => {
+    const rng = createRng(99)
+    const apart = Array.from({ length: 10 }, (_, i) =>
+      Math.abs(sample(rng, 'golden', 1, i, 10, 0) - sample(rng, 'golden', 1, i, 10, 1)),
+    )
+    expect(Math.min(...apart)).toBeGreaterThan(0.01)
+  })
+
+  it('gives a retry on a golden channel a different candidate', () => {
+    const constraints = defaultConstraints('oklch')
+    for (const key of Object.keys(constraints.channels)) {
+      constraints.channels[key].distribution = 'golden'
+    }
+    const rng = createRng(3)
+    const first = randomColor(rng, constraints, 0, 5)
+    const retry = randomColor(rng, constraints, 5, 5)
+    expect(deltaEOK(first, retry)).toBeGreaterThan(0.02)
   })
 })

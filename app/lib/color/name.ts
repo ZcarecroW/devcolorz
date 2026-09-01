@@ -69,7 +69,7 @@ function lightnessWord(l: number): string {
 function chromaWord(c: number, l: number): string {
   const ceiling = 0.33 * (1 - Math.abs(l - 0.6) * 1.2)
   const ratio = ceiling > 0 ? c / ceiling : 0
-  if (c < 0.012) return 'Grey'
+  if (c < 0.012) return 'Gray'
   if (ratio < 0.2) return 'Muted'
   if (ratio < 0.45) return 'Soft'
   if (ratio < 0.75) return ''
@@ -87,7 +87,7 @@ export function describeColor(color: ColorInput): string {
   if (chroma < 0.012) {
     if (l < 0.06) return 'Black'
     if (l > 0.97) return 'White'
-    return `${lightnessWord(l) || 'Mid'} grey`.replace(/^\w/, (m) => m.toUpperCase())
+    return `${lightnessWord(l) || 'Mid'} gray`.replace(/^\w/, (m) => m.toUpperCase())
   }
   const parts = [chromaWord(chroma, l), lightnessWord(l).toLowerCase(), hueFamily(c.h ?? 0).toLowerCase()]
   const joined = parts.filter(Boolean).join(' ')
@@ -97,7 +97,7 @@ export function describeColor(color: ColorInput): string {
 /** Just the hue family — used for grouping and for export variable names. */
 export function familyOf(color: ColorInput): string {
   const c = toOklch(color) as Oklch
-  if ((c.c ?? 0) < 0.012) return 'Grey'
+  if ((c.c ?? 0) < 0.012) return 'Gray'
   return hueFamily(c.h ?? 0)
 }
 

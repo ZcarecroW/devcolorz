@@ -212,7 +212,10 @@ export function channelValues(color: ColorInput, space: SpaceId): Record<string,
 export function fromChannelValues(space: SpaceId, values: Record<string, number>, alpha = 1): Oklch {
   const obj: Record<string, unknown> = { mode: space === 'p3' ? 'p3' : space }
   for (const ch of getSpace(space).channels) obj[ch.key] = values[ch.key] ?? 0
-  if (alpha < 1) obj.alpha = alpha
+  // Clamped on both sides: a value above 1 used to slip past the opacity test
+  // and disappear, while a negative one was stored as-is.
+  const opacity = Number.isFinite(alpha) ? Math.min(1, Math.max(0, alpha)) : 1
+  if (opacity < 1) obj.alpha = opacity
   return fromSpace(obj as unknown as Color)
 }
 

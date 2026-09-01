@@ -85,16 +85,43 @@ const RYB_ANCHORS: Array<[ryb: number, real: number]> = [
   [360, 389], // back to red
 ]
 
-function interpolateAnchors(value: number, from: 0 | 1, to: 0 | 1): number {
+type Anchors = ReadonlyArray<readonly [wheel: number, real: number]>
+
+/**
+ * The digital (HSL) wheel, in the same shape as the RYB one.
+ *
+ * Measured rather than typed in: each anchor is the OKLCH hue of the fully
+ * saturated HSL colour at that HSL hue, every 15°. The real column is
+ * unwrapped so it climbs monotonically past 360°, which is what the
+ * interpolation below relies on. This wheel used to be a copy of the OKLCH
+ * one — the option changed nothing — so "Digital (HSL)" rotated on the
+ * perceptual wheel while its own hint explained how unevenly HSL spaces
+ * its hues.
+ */
+const HSL_ANCHORS: Anchors = (() => {
+  const anchors: Array<[number, number]> = []
+  let previous = -Infinity
+  for (let hsl = 0; hsl <= 360; hsl += 15) {
+    const raw = toOklch({ mode: 'hsl', h: hsl % 360, s: 1, l: 0.5 }).h ?? 0
+    // Lift each angle above the last, so the column never wraps back down.
+    const real =
+      previous === -Infinity ? raw : previous + ((((raw - previous) % 360) + 360) % 360)
+    anchors.push([hsl, real])
+    previous = real
+  }
+  return anchors
+})()
+
+function interpolateAnchors(anchors: Anchors, value: number, from: 0 | 1, to: 0 | 1): number {
   let v = ((value % 360) + 360) % 360
-  // The real-hue column starts at 29° (where red actually sits in OKLCH) and
-  // runs past 360 to 389. Anything below the first anchor belongs to the final
-  // wrapping segment, so lift it by a full turn before searching.
-  const first = RYB_ANCHORS[0][from]
+  // The real-hue column starts where red actually sits in OKLCH (29° on the
+  // RYB wheel) and runs past 360. Anything below the first anchor belongs to
+  // the final wrapping segment, so lift it by a full turn before searching.
+  const first = anchors[0][from]
   if (v < first) v += 360
-  for (let i = 0; i < RYB_ANCHORS.length - 1; i++) {
-    const a = RYB_ANCHORS[i]
-    const b = RYB_ANCHORS[i + 1]
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const a = anchors[i]
+    const b = anchors[i + 1]
     const lo = a[from]
     const hi = b[from]
     if (v >= lo && v <= hi) {
@@ -103,17 +130,27 @@ function interpolateAnchors(value: number, from: 0 | 1, to: 0 | 1): number {
       return ((result % 360) + 360) % 360
     }
   }
-  return v
+  return ((v % 360) + 360) % 360
 }
 
 /** Real OKLCH hue angle → position on the artistic wheel. */
 export function toRybHue(hue: number): number {
-  return interpolateAnchors(hue, 1, 0)
+  return interpolateAnchors(RYB_ANCHORS, hue, 1, 0)
 }
 
 /** Position on the artistic wheel → real OKLCH hue angle. */
 export function fromRybHue(hue: number): number {
-  return interpolateAnchors(hue, 0, 1)
+  return interpolateAnchors(RYB_ANCHORS, hue, 0, 1)
+}
+
+/** Real OKLCH hue angle → position on the HSL wheel. */
+export function toHslHue(hue: number): number {
+  return interpolateAnchors(HSL_ANCHORS, hue, 1, 0)
+}
+
+/** Position on the HSL wheel → real OKLCH hue angle. */
+export function fromHslHue(hue: number): number {
+  return interpolateAnchors(HSL_ANCHORS, hue, 0, 1)
 }
 
 /** Rotate a hue by `degrees` on the chosen wheel, returning a real hue angle. */
@@ -121,8 +158,10 @@ export function rotateHue(hue: number, degrees: number, wheel: HueWheel): number
   if (wheel === 'ryb') {
     return fromRybHue(toRybHue(hue) + degrees)
   }
-  // OKLCH and HSL both rotate linearly; they differ only in which space the
-  // caller's color already lives in, and ours always live in OKLCH.
+  if (wheel === 'hsl') {
+    return fromHslHue(toHslHue(hue) + degrees)
+  }
+  // Our colours already live in OKLCH, so the perceptual wheel is a plain turn.
   return ((hue + degrees) % 360 + 360) % 360
 }
 
@@ -171,10 +210,15 @@ const wrap360 = (angle: number): number => ((angle % 360) + 360) % 360
  * the default palette size of five came back with two byte-identical colours.
  */
 function fitOffsets(offsets: number[], count: number, spread: number): number[] {
-  if (offsets.length === count) return offsets
-  if (offsets.length > count) return offsets.slice(0, count)
+  // Coincident seeds are one seed. A split complementary at zero spread
+  // starts from [0, 180, 180], and returned as-is — the list is already the
+  // requested length — it put the same colour in the palette twice, which is
+  // exactly what the gap-halving below exists to avoid.
+  const unique = offsets.map(wrap360).filter((angle, i, all) => all.indexOf(angle) === i)
+  if (unique.length === count) return unique
+  if (unique.length > count) return unique.slice(0, count)
 
-  const out = offsets.slice()
+  const out = unique.slice()
   while (out.length < count) {
     const sorted = [...out].sort((a, b) => a - b)
     let bestBase = sorted[0] ?? 0
@@ -303,7 +347,7 @@ export const HARMONY_HINTS: Record<HarmonyId, string> = {
   monochromatic: 'One hue at evenly spaced perceptual lightness steps, with chroma tapering at the extremes so the light and dark ends stay believable. The most reliably professional-looking option.',
   shades: 'The seed darkened toward black in even perceptual steps. Chroma is reduced as it darkens because deep colors cannot hold much of it.',
   tints: 'The seed lightened toward white. Useful for backgrounds and hover states derived from a brand color.',
-  tones: 'The seed desaturated toward grey at constant lightness. Produces the muted, editorial palettes that pure hue rotations never find.',
+  tones: 'The seed desaturated toward gray at constant lightness. Produces the muted, editorial palettes that pure hue rotations never find.',
   'hue-wheel': 'The full wheel divided evenly by the number of colors. The fastest way to a maximally distinct categorical set — think chart series.',
 }
 
