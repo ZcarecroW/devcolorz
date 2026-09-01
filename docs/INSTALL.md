@@ -29,7 +29,7 @@ is wrong if something is missing.
 
 ### 1. Download and unzip
 
-Grab `devcolorz-1.0.0.zip` from the
+Grab the newest `devcolorz-<version>.zip` from the
 [releases page](https://github.com/ZcarecroW/devcolorz/releases) and unzip it.
 You get a folder like this:
 
