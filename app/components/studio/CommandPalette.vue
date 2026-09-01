@@ -24,8 +24,8 @@ import { PALETTE_VIEWS } from '@/lib/palette/layout'
 import { CVD_IDS, CVD_TYPES } from '@/lib/color/cvd'
 import { HARMONY_HINTS, HARMONY_IDS, HARMONY_LABELS } from '@/lib/color/harmony'
 import { EMITTERS } from '@/lib/export/emitters'
-import { allLockedNotice } from '@/lib/palette/notices'
-import { usePaletteStore, type SortKey } from '@/stores/palette'
+import { allLockedNotice, lastColorNotice, paletteFullNotice } from '@/lib/palette/notices'
+import { MAX_SWATCHES, usePaletteStore, type SortKey } from '@/stores/palette'
 import { useStudioStore } from '@/stores/studio'
 import { useThemeStore } from '@/stores/theme'
 
@@ -65,7 +65,16 @@ const SORTS: Array<{ key: Exclude<SortKey, 'none'>; label: string }> = [
 /** Mirrors the `-` key: the last color the user has not asked to keep. */
 function removeLastUnlocked() {
   const last = [...palette.swatches].reverse().find((swatch) => !swatch.locked)
-  if (last) palette.removeSwatch(last.id)
+  if (!last) {
+    allLockedNotice()
+    return
+  }
+  if (!palette.removeSwatch(last.id)) lastColorNotice()
+}
+
+/** Mirrors the `+` key, and says so when the palette is already full. */
+function addOne() {
+  if (!palette.addSwatch()) paletteFullNotice(MAX_SWATCHES)
 }
 
 const groups: CommandGroupDef[] = [
@@ -98,7 +107,7 @@ const groups: CommandGroupDef[] = [
     heading: 'Palette',
     icon: Palette,
     items: [
-      { id: 'pal-add', label: 'Add a color', keys: '+', run: () => palette.addSwatch() },
+      { id: 'pal-add', label: 'Add a color', keys: '+', run: addOne },
       {
         id: 'pal-remove',
         label: 'Remove the last unlocked color',

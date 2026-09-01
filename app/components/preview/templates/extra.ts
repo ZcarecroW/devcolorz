@@ -8,23 +8,12 @@
  * larger bundle forever.
  */
 
-import type { Component } from 'vue'
+// A type-only import, so the registry can import this module's rows without
+// the two forming a runtime cycle. The row shape used to be redeclared here
+// field for field, which nothing kept in step with the registry's own.
+import type { PreviewTemplate } from '../registry'
 
-export interface ExtraTemplate {
-  id: string
-  label: string
-  group: 'Brand' | 'Marketing' | 'Product' | 'Data' | 'Editorial' | 'System'
-  /** One sentence on what this template is for, shown in the template picker. */
-  description: string
-  /**
-   * Below this many palette colors the template still renders — ramp indices
-   * wrap — but it stops being a fair test of the palette.
-   */
-  minColors: number
-  component: () => Promise<Component>
-}
-
-export const EXTRA_TEMPLATES: ExtraTemplate[] = [
+export const EXTRA_TEMPLATES: PreviewTemplate[] = [
   {
     id: 'mobile-app',
     label: 'Mobile app',

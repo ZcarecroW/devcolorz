@@ -210,9 +210,11 @@ async function copyStop(group: string, stop: ScaleStop) {
 
 function replacePalette() {
   if (!stops.value.length) return
+  // Every colour is new, so no lock from the old palette applies to it.
   palette.setColors(
     stops.value.map((s) => s.color),
     'Apply scale',
+    false,
   )
 }
 </script>
@@ -342,7 +344,7 @@ function replacePalette() {
           <InfoHint
             title="Darkest step"
             wide
-            text="OKLCH lightness of the bottom of the ramp. Design systems stop around 0.15 to 0.22 rather than running to black, because a color with no lightness left has no hue left either and the family stops being recognisable. Go lower only when you need a near-black surface that still has to read as branded."
+            text="OKLCH lightness of the bottom of the ramp. Design systems stop around 0.15 to 0.22 rather than running to black, because a color with no lightness left has no hue left either and the family stops being recognizable. Go lower only when you need a near-black surface that still has to read as branded."
           />
         </Label>
         <input
@@ -365,7 +367,7 @@ function replacePalette() {
           <InfoHint
             title="Saturation at the ends"
             wide
-            text="How much chroma is drained from the two ends of the ramp. Some falloff is always right, because a near-white and a near-black physically cannot hold much of it: at 0 the tints turn muddy and the shades clip against the gamut boundary. At 1 both ends are effectively grey and the family loses its identity where it is used most — backgrounds and text. Around 0.5 keeps the hue readable at both extremes."
+            text="How much chroma is drained from the two ends of the ramp. Some falloff is always right, because a near-white and a near-black physically cannot hold much of it: at 0 the tints turn muddy and the shades clip against the gamut boundary. At 1 both ends are effectively gray and the family loses its identity where it is used most — backgrounds and text. Around 0.5 keeps the hue readable at both extremes."
           />
         </Label>
         <input
@@ -544,9 +546,9 @@ function replacePalette() {
         <Label class="flex items-center gap-1 text-xs">
           Neutrals
           <InfoHint
-            title="Why a tinted grey"
+            title="Why a tinted gray"
             wide
-            text="A grey ramp that carries a few percent of the seed's chroma. Put a pure grey next to a saturated brand color and it reads as dirty and faintly opposed in hue, because the eye judges neutrality relative to what surrounds it. Greys pulled toward the brand hue read as deliberate, and they let borders, shadows, dividers and disabled text belong to the same family as everything else. Radix, Material and Tailwind all ship tinted greys for exactly this reason."
+            text="A gray ramp that carries a few percent of the seed's chroma. Put a pure gray next to a saturated brand color and it reads as dirty and faintly opposed in hue, because the eye judges neutrality relative to what surrounds it. Grays pulled toward the brand hue read as deliberate, and they let borders, shadows, dividers and disabled text belong to the same family as everything else. Radix, Material and Tailwind all ship tinted grays for exactly this reason."
           />
         </Label>
       </div>
@@ -555,9 +557,9 @@ function replacePalette() {
         <Label class="flex w-24 shrink-0 items-center gap-1 text-xs">
           Tint
           <InfoHint
-            title="How much brand in the grey"
+            title="How much brand in the gray"
             wide
-            text="The chroma the neutrals keep, on the OKLCH scale where the brand color itself is usually 0.10 to 0.25. Below about 0.005 the tint is invisible and you may as well use a pure grey. Above about 0.02 it stops reading as neutral and starts competing with the brand ramp for attention. Most systems land between 0.01 and 0.015."
+            text="The chroma the neutrals keep, on the OKLCH scale where the brand color itself is usually 0.10 to 0.25. Below about 0.005 the tint is invisible and you may as well use a pure gray. Above about 0.02 it stops reading as neutral and starts competing with the brand ramp for attention. Most systems land between 0.01 and 0.015."
           />
         </Label>
         <input

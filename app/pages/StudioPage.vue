@@ -58,7 +58,7 @@ const panels = [
  * colleague's link — either cost you twenty minutes of undo or did not,
  * depending on which route you happened to be standing on. It never should.
  */
-async function applyIncoming(next: PaletteState | null) {
+async function applyIncoming(next: PaletteState | null, quiet = false) {
   if (!next?.colors.length) return
   // Compare the whole state, not just the colours. A link carries names and
   // locks too, and a palette that happens to hold the same six hexes is not
@@ -70,7 +70,34 @@ async function applyIncoming(next: PaletteState | null) {
   if (sameColors && sameNames && sameLocks) return
   if (palette.count) palette.loadState(next, 'Open shared palette')
   else palette.init(next)
-  toast.success(`Loaded ${next.colors.length} colors from the link`)
+  if (!quiet) toast.success(`Loaded ${next.colors.length} colors from the link`)
+}
+
+/**
+ * The last link this tab wrote into its own address bar.
+ *
+ * The studio rewrites the URL as you work, so after a reload the palette
+ * arrives through the same door as a colleague's link — and was greeted with
+ * the same "Loaded 5 colors from the link", for colours the visitor had never
+ * left. Session storage is per tab and survives a reload, which is exactly
+ * the distinction: a link opened from elsewhere never matches it.
+ */
+const OWN_LINK_KEY = 'devcolorz:own-link'
+
+function rememberOwnLink(state: string) {
+  try {
+    sessionStorage.setItem(OWN_LINK_KEY, state)
+  } catch {
+    // Storage being unavailable only costs the reload its silence.
+  }
+}
+
+function isOwnLink(state: string): boolean {
+  try {
+    return sessionStorage.getItem(OWN_LINK_KEY) === state
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -93,7 +120,7 @@ onMounted(async () => {
   // button.
   const incoming = typeof encoded === 'string' && encoded ? await decodeState(encoded) : null
   if (incoming) {
-    await applyIncoming(incoming)
+    await applyIncoming(incoming, isOwnLink(encoded as string))
     return
   }
   if (encoded) {
@@ -188,6 +215,7 @@ watch(
       // pending replace would then pull them back to the studio.
       if (leaving || route.params.state === state) return
       selfWritten = state
+      rememberOwnLink(state)
       void router.replace({ name: 'shared', params: { state } })
     }, 500)
   },

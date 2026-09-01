@@ -175,13 +175,22 @@ export const usePaletteStore = defineStore('palette', () => {
     swatches.value = swatches.value.map((s) => (s.id === id ? { ...s, color, name: '' } : s))
   }
 
-  /** Adopt an entire set of colors, preserving locks where the count matches. */
-  function setColors(next: Oklch[], label = 'Set colors') {
+  /**
+   * Adopt an entire set of colors.
+   *
+   * Swatch ids survive by position, so the export panel's per-color settings
+   * follow the slot. Locks survive too by default, which is right for a
+   * harmony that has merged the locked colours into its result — and wrong
+   * for a scale or an image that replaces every colour outright: a lock kept
+   * there pinned a colour the user never chose and silently refused every
+   * later roll on it, so those callers pass `keepLocks: false`.
+   */
+  function setColors(next: Oklch[], label = 'Set colors', keepLocks = true) {
     commit(label)
     swatches.value = next.map((color, i) => {
       const existing = swatches.value[i]
       return existing
-        ? { ...existing, color, name: '' }
+        ? { ...existing, color, name: '', locked: keepLocks && existing.locked }
         : makeSwatch(color)
     })
   }
@@ -283,8 +292,9 @@ export const usePaletteStore = defineStore('palette', () => {
    * generating a random one — inserting between two colors almost always means
    * "I want the step in between", and a random insert destroys the ramp.
    */
-  function addSwatch(index = count.value, color?: Oklch) {
-    if (count.value >= MAX_SWATCHES) return
+  /** False when the palette is already full, so the caller can say so. */
+  function addSwatch(index = count.value, color?: Oklch): boolean {
+    if (count.value >= MAX_SWATCHES) return false
     commit('Add color')
     const before = swatches.value[index - 1]
     const after = swatches.value[index]
@@ -301,12 +311,31 @@ export const usePaletteStore = defineStore('palette', () => {
     const list = swatches.value.slice()
     list.splice(index, 0, makeSwatch(next))
     swatches.value = list
+    return true
   }
 
-  function removeSwatch(id: string) {
-    if (count.value <= MIN_SWATCHES) return
+  /**
+   * Append several colors as one undoable step.
+   *
+   * Adding an extracted set one swatch at a time recorded one history entry
+   * per colour, so undoing a single click took five presses through four
+   * half-added palettes. Returns how many fitted before the limit.
+   */
+  function addSwatches(next: Oklch[]): number {
+    const room = Math.max(0, MAX_SWATCHES - count.value)
+    const taken = next.slice(0, room)
+    if (!taken.length) return 0
+    commit(taken.length === 1 ? 'Add color' : `Add ${taken.length} colors`)
+    swatches.value = [...swatches.value, ...taken.map((c) => makeSwatch(c))]
+    return taken.length
+  }
+
+  /** False when this is the last color, so the caller can say so. */
+  function removeSwatch(id: string): boolean {
+    if (count.value <= MIN_SWATCHES) return false
     commit('Remove color')
     swatches.value = swatches.value.filter((s) => s.id !== id)
+    return true
   }
 
   function moveSwatch(from: number, to: number) {
@@ -516,6 +545,7 @@ export const usePaletteStore = defineStore('palette', () => {
     setAllLocks,
     invertLocks,
     addSwatch,
+    addSwatches,
     removeSwatch,
     moveSwatch,
     setCount,

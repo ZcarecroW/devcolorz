@@ -9,7 +9,7 @@
  * edit attached: a contrast repair from the matrix, a hue-and-lightness nudge
  * from the collision list.
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ArrowLeftRight, Eye } from '@lucide/vue'
 import ContrastMatrix from '@/components/a11y/ContrastMatrix.vue'
 import InfoHint from '@/components/common/InfoHint.vue'
@@ -117,6 +117,17 @@ const safetyVerdict = computed(() => {
 
 /** Which simulation the studio switch turns on. */
 const chosen = ref<CvdType>(studio.cvd === 'none' ? 'deuteranomaly' : studio.cvd)
+
+// The toolbar and the command palette set the simulation too. Read once at
+// mount, this label kept naming the deficiency picked here after the toolbar
+// had switched to another, and flicking the switch off and on brought the
+// stale one back in place of the toolbar's choice.
+watch(
+  () => studio.cvd,
+  (id) => {
+    if (id !== 'none') chosen.value = id
+  },
+)
 
 const simulating = computed({
   get: () => studio.cvd !== 'none',

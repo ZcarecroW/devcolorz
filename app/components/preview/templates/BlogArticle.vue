@@ -85,7 +85,7 @@ const tags = ['color-science', 'oklch', 'design-systems', 'accessibility']
             title="Why real paragraphs"
             wide
             class="text-[color:var(--p-text-muted)] hover:text-[color:var(--p-text)]"
-            text="Grey placeholder bars flatter every palette, because a bar has no stroke weight and no counters to close up. Running actual sentences at 13px is the only honest test of the muted text color: it should read as quieter than the body, never as harder to read. If you find yourself squinting at the caption below, lift the muted color toward the text color rather than the background."
+            text="Gray placeholder bars flatter every palette, because a bar has no stroke weight and no counters to close up. Running actual sentences at 13px is the only honest test of the muted text color: it should read as quieter than the body, never as harder to read. If you find yourself squinting at the caption below, lift the muted color toward the text color rather than the background."
           />
         </span>
       </div>

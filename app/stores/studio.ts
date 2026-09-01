@@ -176,6 +176,28 @@ export const useStudioStore = defineStore('studio', () => {
     if (id === 'export' && emitter) exportEmitter.value = emitter
   }
 
+  /**
+   * An image pasted while the Image panel was not on screen.
+   *
+   * The panel listens for paste itself, but only while it is mounted — which
+   * it is not on any other tab. The shortcut sheet still promised "paste an
+   * image from the clipboard", so Ctrl+V on the Ranges tab did nothing at
+   * all. The global handler parks the file here and opens the panel, which
+   * collects it as it mounts. Not a ref: a File is not state to render.
+   */
+  let pastedImage: File | null = null
+
+  function stashPastedImage(file: File) {
+    pastedImage = file
+    openPanel('image')
+  }
+
+  function takePastedImage(): File | null {
+    const file = pastedImage
+    pastedImage = null
+    return file
+  }
+
   return {
     format,
     activePanel,
@@ -194,5 +216,7 @@ export const useStudioStore = defineStore('studio', () => {
     commandOpen,
     usingDefaults,
     openPanel,
+    stashPastedImage,
+    takePastedImage,
   }
 })

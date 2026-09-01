@@ -36,6 +36,12 @@ const surface = useTemplateRef<HTMLElement>('surface')
 const { width, height } = useElementSize(surface)
 
 const dragIndex = ref<number | null>(null)
+/**
+ * The swatch under the dragged one, outlined so the drop has a visible target.
+ * It was tracked and never drawn, so reordering was a guess past the browser's
+ * own drag ghost — in the grid layouts especially, where "next to" is not the
+ * obvious neighbour.
+ */
 const overIndex = ref<number | null>(null)
 
 const canRemove = computed(() => palette.count > MIN_SWATCHES)
@@ -155,6 +161,12 @@ const spanFor = (index: number) =>
         :layout="cellLayout"
         :dragging="dragIndex === index"
         :style="spanFor(index)"
+        :class="
+          dragIndex !== null &&
+          overIndex === index &&
+          dragIndex !== index &&
+          'outline-2 -outline-offset-2 outline-dashed outline-foreground/70'
+        "
         role="listitem"
         @lock="palette.toggleLock(swatch.id)"
         @remove="palette.removeSwatch(swatch.id)"

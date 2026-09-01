@@ -13,8 +13,8 @@
 
 import { onBeforeUnmount, onMounted } from 'vue'
 import { toast } from 'vue-sonner'
-import { allLockedNotice } from '@/lib/palette/notices'
-import { usePaletteStore } from '@/stores/palette'
+import { allLockedNotice, lastColorNotice, paletteFullNotice } from '@/lib/palette/notices'
+import { MAX_SWATCHES, usePaletteStore } from '@/stores/palette'
 import { useStudioStore } from '@/stores/studio'
 import { useThemeStore } from '@/stores/theme'
 
@@ -52,6 +52,10 @@ function isTypingTarget(target: EventTarget | null): boolean {
   if (target.isContentEditable) return true
   const tag = target.tagName
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+}
+
+function isRangeInput(target: EventTarget | null): boolean {
+  return target instanceof HTMLInputElement && target.type === 'range'
 }
 
 /**
@@ -151,7 +155,20 @@ export function useKeyboardShortcuts() {
   function onPaste(event: ClipboardEvent) {
     if (isTypingTarget(event.target)) return
     const items = event.clipboardData?.items
-    if (items && Array.from(items).some((item) => item.type.startsWith('image/'))) return
+    const image = items
+      ? Array.from(items).find((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      : undefined
+    if (image) {
+      // The Image panel takes it itself while it is on screen. Anywhere else
+      // in the studio the file is parked with the store, which opens the
+      // panel — the panel collects it as it mounts.
+      if (document.querySelector('[data-image-panel]')) return
+      const file = image.getAsFile()
+      if (!file) return
+      event.preventDefault()
+      studio.stashPastedImage(file)
+      return
+    }
 
     const text = event.clipboardData?.getData('text/plain') ?? ''
     if (!text.trim()) return
@@ -163,8 +180,11 @@ export function useKeyboardShortcuts() {
   }
 
   function onKeydown(event: KeyboardEvent) {
-    if (isTypingTarget(event.target)) return
     const mod = event.ctrlKey || event.metaKey
+    // A slider has no text to protect, so the modifier chords stay available
+    // on it — a keyboard user could not undo a channel adjustment without
+    // first tabbing off the slider they had just made it on.
+    if (isTypingTarget(event.target) && !(mod && isRangeInput(event.target))) return
 
     if (mod) {
       switch (event.key.toLowerCase()) {
@@ -235,12 +255,16 @@ export function useKeyboardShortcuts() {
         return
       case '+':
       case '=':
-        palette.addSwatch()
+        if (!palette.addSwatch()) paletteFullNotice(MAX_SWATCHES)
         return
       case '-':
       case '_': {
         const last = [...palette.swatches].reverse().find((s) => !s.locked)
-        if (last) palette.removeSwatch(last.id)
+        if (!last) {
+          allLockedNotice()
+          return
+        }
+        if (!palette.removeSwatch(last.id)) lastColorNotice()
         return
       }
     }

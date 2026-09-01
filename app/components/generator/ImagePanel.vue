@@ -141,6 +141,9 @@ function drawToCanvas(img: HTMLImageElement) {
   ctx.drawImage(img, 0, 0, el.width, el.height)
 }
 
+/** Which load is allowed to become the image; see `runToken` below. */
+let loadToken = 0
+
 async function loadFile(file: File) {
   if (!ACCEPTED.includes(file.type)) {
     error.value = `${file.type || 'That file'} is not a supported image. Use PNG, JPEG, WebP, GIF or AVIF.`
@@ -157,11 +160,20 @@ async function loadFile(file: File) {
   const img = new Image()
   img.decoding = 'async'
   img.src = url
+  // The same guard `run()` uses: a large image dropped first can finish
+  // decoding after a small one dropped second, and without this it then
+  // replaced the newer image and revoked the URL that image was drawn from.
+  const token = ++loadToken
   try {
     await img.decode()
   } catch {
     URL.revokeObjectURL(url)
+    if (token !== loadToken) return
     error.value = 'That image could not be decoded. It may be corrupt, or in a format this browser does not read.'
+    return
+  }
+  if (token !== loadToken) {
+    URL.revokeObjectURL(url)
     return
   }
 
@@ -215,7 +227,14 @@ function onPaste(event: ClipboardEvent) {
   }
 }
 
-onMounted(() => window.addEventListener('paste', onPaste))
+onMounted(() => {
+  window.addEventListener('paste', onPaste)
+  // An image pasted while this panel was not on screen is handed over by the
+  // studio's global paste handler, which opens the panel and leaves the file
+  // here for it to pick up.
+  const pending = studio.takePastedImage()
+  if (pending) void loadFile(pending)
+})
 onUnmounted(() => {
   window.removeEventListener('paste', onPaste)
   releaseImage()
@@ -319,29 +338,35 @@ function addOne(color: Oklch) {
 
 function useAsPalette() {
   if (!result.value.length) return
+  // Every colour is new, so no lock from the old palette applies to it.
   palette.setColors(
     result.value.map((entry) => entry.color),
     'From image',
+    false,
   )
 }
 
 function addAll() {
-  const room = MAX_SWATCHES - palette.count
-  if (room <= 0) {
+  if (palette.count >= MAX_SWATCHES) {
     toast.error(`The palette is full at ${MAX_SWATCHES} colors`)
     return
   }
-  const taken = result.value.slice(0, room)
-  for (const entry of taken) palette.addSwatch(palette.count, entry.color)
-  if (taken.length < result.value.length) {
-    toast.success(`Added ${taken.length} of ${result.value.length} — the palette hit its limit`)
+  // One undo step for the whole set, however many it turns out to be.
+  const added = palette.addSwatches(result.value.map((entry) => entry.color))
+  if (added < result.value.length) {
+    toast.success(`Added ${added} of ${result.value.length} — the palette hit its limit`)
   }
 }
 </script>
 
 <template>
+  <!--
+    `data-image-panel` tells the studio's global paste handler that this
+    panel is on screen and will take an image itself.
+  -->
   <div
     class="flex min-h-0 flex-col gap-3"
+    data-image-panel
     @dragenter.prevent="dragging = true"
     @dragover.prevent="dragging = true"
     @dragleave.prevent="dragging = false"

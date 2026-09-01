@@ -14,3 +14,22 @@ export function allLockedNotice(): void {
     description: 'Unlock at least one swatch — generating would have nothing to change.',
   })
 }
+
+/**
+ * Say why a color was not added or removed.
+ *
+ * The toolbar disables its buttons at the limits, but the `+` and `−` keys
+ * and the command palette have no disabled state to show: pressed at forty
+ * colors, or at one, they used to do nothing and say nothing.
+ */
+export function paletteFullNotice(max: number): void {
+  toast.info(`The palette is full at ${max} colors`, {
+    description: 'Remove one before adding another.',
+  })
+}
+
+export function lastColorNotice(): void {
+  toast.info('That is the last color', {
+    description: 'A palette keeps at least one. Generate or adjust it instead of removing it.',
+  })
+}

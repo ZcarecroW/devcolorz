@@ -130,16 +130,31 @@ const distinctness = computed({
   },
 })
 
-const seedText = computed({
-  get: () => (palette.constraints.seed === null ? '' : String(palette.constraints.seed)),
-  set: (value: string) => {
-    const parsed = Number.parseInt(value, 10)
-    palette.constraints = {
-      ...palette.constraints,
-      seed: Number.isFinite(parsed) ? parsed : null,
-    }
+/**
+ * The seed field, as typed.
+ *
+ * Parsed on commit rather than on every keystroke: round-tripping each key
+ * through `parseInt` rewrote "007" to "7" under the cursor and wiped a lone
+ * "-" the moment it was typed, so a negative seed could only ever be pasted.
+ * The same pattern the channel range boxes use.
+ */
+const seedDraft = ref(palette.constraints.seed === null ? '' : String(palette.constraints.seed))
+
+watch(
+  () => palette.constraints.seed,
+  (seed) => {
+    const shown = seed === null ? '' : String(seed)
+    if (Number.parseInt(seedDraft.value, 10) !== seed || shown === '') seedDraft.value = shown
   },
-})
+)
+
+function commitSeed() {
+  const parsed = Number.parseInt(seedDraft.value.trim(), 10)
+  const seed = Number.isFinite(parsed) ? parsed : null
+  seedDraft.value = seed === null ? '' : String(seed)
+  if (seed === palette.constraints.seed) return
+  palette.constraints = { ...palette.constraints, seed }
+}
 </script>
 
 <template>
@@ -266,11 +281,13 @@ const seedText = computed({
           />
         </Label>
         <input
-          v-model="seedText"
+          v-model="seedDraft"
           class="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 font-mono text-[11px] tabular-nums"
           placeholder="random"
           aria-label="Generator seed"
           inputmode="numeric"
+          @blur="commitSeed"
+          @keydown.enter.prevent="commitSeed"
         />
         <Button
           variant="outline"

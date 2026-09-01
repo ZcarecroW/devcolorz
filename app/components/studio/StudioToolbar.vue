@@ -104,7 +104,14 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
 
 <template>
   <header class="shrink-0 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-    <div class="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 xl:flex-nowrap">
+    <!--
+      Wrapping is never switched off. It used to be, from `xl` up, on the
+      assumption that one row fits there — it does not until about 1400px, so
+      on a 1280px screen the last three controls sat beyond the right edge
+      with nothing to scroll them into view. A flex line that fits does not
+      wrap, so the one-row layout survives wherever it has the room.
+    -->
+    <div class="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2">
       <!--
         Panel handles.
 
@@ -191,9 +198,17 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
           <Plus />
         </Button>
       </div>
+      <!--
+        The toolbar's explanations are hover tooltips, and below `sm` there is
+        no hover: a tap gives the trigger focus and the next tap takes it away
+        again before anything can be read. Seven of them cost a phone two rows
+        of toolbar for controls that could not open, so they step aside there.
+        The panels keep theirs — a sheet has the width for them.
+      -->
       <InfoHint
         title="How many colors"
         wide
+        class="hidden sm:inline-flex"
         :text="`Anything from ${MIN_SWATCHES} to ${MAX_SWATCHES}. Growing the palette generates the new colors under the current ranges and keeps them distinct from the ones already there; shrinking it drops unlocked colors from the end first, so locks survive. Most brand palettes settle at five or six, but a full UI scale needs more.`"
       />
 
@@ -227,7 +242,12 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
             />
           </SelectContent>
         </Select>
-        <InfoHint title="Notation" wide :text="FORMAT_HINTS[studio.format]" />
+        <InfoHint
+          title="Notation"
+          wide
+          class="hidden sm:inline-flex"
+          :text="FORMAT_HINTS[studio.format]"
+        />
       </div>
 
       <!-- Layout -->
@@ -248,16 +268,18 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
                 : 'text-muted-foreground hover:text-foreground'
             "
             :aria-pressed="studio.paletteView === view.id"
+            :aria-label="view.label"
             :title="view.hint"
             @click="studio.paletteView = view.id"
           >
             <component :is="VIEW_ICONS[view.id]" class="size-3.5" />
-            <span class="hidden xl:inline">{{ view.label }}</span>
+            <span class="hidden 2xl:inline" aria-hidden="true">{{ view.label }}</span>
           </button>
         </div>
         <InfoHint
           title="Palette layout"
           wide
+          class="hidden sm:inline-flex"
           :text="VIEW_BY_ID[studio.paletteView].hint"
         />
       </div>
@@ -266,9 +288,15 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
       <div class="flex items-center gap-1">
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="sm" class="gap-1.5">
+            <!--
+              Named explicitly: below `sm` the caption is display:none, and a
+              hidden caption is not an accessible name, so the button was
+              announced as nothing at all on the one width where its icon is
+              all there is to go on.
+            -->
+            <Button variant="outline" size="sm" class="gap-1.5" aria-label="Order">
               <ArrowUpDown />
-              <span class="hidden sm:inline">Order</span>
+              <span class="hidden sm:inline" aria-hidden="true">Order</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" class="w-60">
@@ -298,6 +326,7 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
         <InfoHint
           title="Order matters"
           wide
+          class="hidden sm:inline-flex"
           text="Position is the only thing a preview template has to go on before roles are assigned, so reordering changes which color becomes the background and which becomes the accent. Sorting by lightness is the safe choice; shuffle is the fast way to find a better assignment without touching the colors themselves."
         />
       </div>
@@ -333,20 +362,32 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
             </SelectItem>
           </SelectContent>
         </Select>
-        <InfoHint title="Color vision" wide :text="CVD_TYPES[studio.cvd].hint" />
+        <InfoHint
+          title="Color vision"
+          wide
+          class="hidden sm:inline-flex"
+          :text="CVD_TYPES[studio.cvd].hint"
+        />
       </div>
 
       <div class="hidden flex-1 xl:block" />
 
       <!-- Share and help -->
       <div class="flex items-center gap-1">
-        <Button variant="outline" size="sm" class="gap-1.5" @click="emit('copyLink')">
+        <Button
+          variant="outline"
+          size="sm"
+          class="gap-1.5"
+          aria-label="Copy link"
+          @click="emit('copyLink')"
+        >
           <Link2 />
-          <span class="hidden sm:inline">Copy link</span>
+          <span class="hidden sm:inline" aria-hidden="true">Copy link</span>
         </Button>
         <InfoHint
           title="What the link carries"
           wide
+          class="hidden sm:inline-flex"
           text="The whole palette is packed into the URL fragment — colors, locks and names. Nothing is uploaded and no account is involved, so the link works forever and reveals nothing to the server. The cost is length: a twenty-color palette makes a long URL."
         />
         <Button
@@ -360,9 +401,11 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
           <PanelRightClose v-if="props.rightOpen" />
           <PanelRightOpen v-else />
         </Button>
+        <!-- A cheat sheet for keys is noise on a screen that has none. -->
         <Button
           variant="ghost"
           size="icon-sm"
+          class="hidden sm:inline-flex"
           aria-label="Keyboard shortcuts"
           title="Keyboard shortcuts"
           @click="studio.shortcutsOpen = true"

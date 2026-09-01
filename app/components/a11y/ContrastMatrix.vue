@@ -62,10 +62,17 @@ const lightnessContrasts = computed(() => contrastMatrix(colors.value, 'apca'))
 
 const gap = computed(() => (size.value > 12 ? 1 : 2))
 
+/**
+ * Cells shrink to fit the panel, but never below 24px: every cell is a button,
+ * and 24×24 is the smallest target a finger can be expected to hit. Past that
+ * the grid scrolls sideways instead — a matrix of forty colours used to fit
+ * itself into the sidebar at ten pixels a cell, inside the one panel whose
+ * job is accessibility.
+ */
 const cellSize = computed(() => {
   const columns = size.value + 1
   const usable = width.value - gap.value * (columns - 1)
-  return Math.max(10, Math.min(44, Math.floor(usable / columns)))
+  return Math.max(24, Math.min(44, Math.floor(usable / columns)))
 })
 
 /** Below this the digits turn to mush, so the colour coding carries the grid. */

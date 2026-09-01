@@ -7,7 +7,7 @@
  * near-black — the failure mode that makes most palette tools unusable at the
  * extremes.
  */
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import {
   Check,
   Copy,
@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   X,
 } from '@lucide/vue'
+import { useElementSize } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 import { formatColor } from '@/lib/color/convert'
 import { apca, bestBlackOrWhite, faintestReadable } from '@/lib/color/contrast'
@@ -77,16 +78,51 @@ const shellClass = computed(() => {
   }
 })
 
-/** The rotated label is a column-only trick; a tile is never that narrow. */
-const narrowRules = computed(() =>
-  layout.value === 'column'
-    ? '@max-[6rem]/swatch:flex-1 @max-[6rem]/swatch:justify-end @max-[6rem]/swatch:p-1 @max-[6rem]/swatch:pb-3 @max-[6rem]/swatch:[writing-mode:vertical-rl] @max-[6rem]/swatch:rotate-180'
-    : '',
+const copied = ref(false)
+const curatedName = ref('')
+
+const textColor = computed(() => formatColor(bestBlackOrWhite(props.swatch.color), 'oklch'))
+const background = computed(() => formatColor(props.swatch.color, 'oklch'))
+const display = computed(() => formatColor(props.swatch.color, props.format))
+
+const cell = useTemplateRef<HTMLElement>('cell')
+const { width: cellWidth } = useElementSize(cell)
+
+/**
+ * Whether the value has to turn on its side to be read.
+ *
+ * This used to be a container query at a fixed 6rem, which was right for a hex
+ * and wrong for everything longer: an oklch() value is four times the width,
+ * so a column with plenty of height for the whole string showed "oklch(80…"
+ * instead. The threshold now follows the string — about 8px per character of
+ * monospace at the sizes used here, plus the padding and the copy icon — so a
+ * long notation rotates while a short one keeps its horizontal label down to
+ * the same 6rem as before. Measured rather than queried, because a container
+ * query cannot read a length; the rotated label is still a column-only trick,
+ * since a tile is never that narrow and a row is never that short.
+ */
+const rotated = computed(
+  () =>
+    layout.value === 'column' &&
+    cellWidth.value > 0 &&
+    cellWidth.value < display.value.length * 8 + 40,
 )
 
-/** The value is full-width in a tall cell and intrinsic in a wide one. */
-const valueClass = computed(() =>
-  layout.value === 'row' ? 'w-auto shrink-0' : 'w-full',
+/** The value is full-width in a tall cell and intrinsic in a wide or rotated one. */
+const valueClass = computed(() => {
+  if (rotated.value) return 'w-auto px-1 py-2 text-xs'
+  const size = display.value.length > 22 ? 'text-[11px] sm:text-xs' : 'text-sm sm:text-base'
+  return layout.value === 'row' ? `w-auto shrink-0 px-2 py-1 ${size}` : `w-full px-2 py-1 ${size}`
+})
+
+/**
+ * A tile or a card cannot rotate, so a value that will not fit on one line
+ * wraps there instead of ending in an ellipsis that hides most of the number.
+ */
+const valueTextClass = computed(() =>
+  layout.value === 'tile' || layout.value === 'card'
+    ? 'whitespace-normal leading-tight [overflow-wrap:anywhere]'
+    : 'truncate',
 )
 
 /** In a row the name gets the leftover width; elsewhere it sits under the value. */
@@ -95,6 +131,9 @@ const nameClass = computed(() =>
 )
 
 const labelClass = computed(() => {
+  if (rotated.value) {
+    return 'flex-1 items-center justify-end p-1 pb-3 text-center [writing-mode:vertical-rl] rotate-180'
+  }
   switch (layout.value) {
     case 'row':
       // Every row is indented the same: the panel-collapse button that the
@@ -109,13 +148,6 @@ const labelClass = computed(() => {
       return 'items-center gap-1 p-3 pb-6 text-center sm:pb-8'
   }
 })
-
-const copied = ref(false)
-const curatedName = ref('')
-
-const textColor = computed(() => formatColor(bestBlackOrWhite(props.swatch.color), 'oklch'))
-const background = computed(() => formatColor(props.swatch.color, 'oklch'))
-const display = computed(() => formatColor(props.swatch.color, props.format))
 const fallbackName = computed(() => describeColor(props.swatch.color))
 const label = computed(() => props.swatch.name || curatedName.value || fallbackName.value)
 const outOfGamut = computed(() => !isInGamut(props.swatch.color))
@@ -227,6 +259,7 @@ function onKeydown(event: KeyboardEvent) {
 
 <template>
   <div
+    ref="cell"
     class="group/swatch @container/swatch relative flex overflow-hidden transition-[flex-grow] duration-300 ease-out"
     :class="[
       shellClass,
@@ -334,31 +367,32 @@ function onKeydown(event: KeyboardEvent) {
     </div>
 
     <!--
-      The value and name. Below 6rem there is no horizontal room for a hex at
-      all — it collapsed to an ellipsis and the name to a single letter — so
-      the block turns on its side and reads bottom-to-top, which is what a
-      narrow column has plenty of.
+      The value and name. When a column has no horizontal room for the value —
+      it collapsed to an ellipsis and the name to a single letter — the block
+      turns on its side and reads bottom-to-top, which is what a narrow column
+      has plenty of.
     -->
-    <div class="flex flex-col" :class="[labelClass, narrowRules]">
+    <div class="flex flex-col" :class="labelClass">
       <button
         type="button"
-        class="flex max-w-full items-center justify-center gap-1.5 rounded-md px-2 py-1 font-mono text-sm font-semibold tracking-wide tabular-nums transition hover:bg-current/12 @max-[6rem]/swatch:w-auto @max-[6rem]/swatch:px-1 @max-[6rem]/swatch:py-2 @max-[6rem]/swatch:text-xs"
-        :class="[valueClass, display.length > 22 ? 'text-[11px] sm:text-xs' : 'text-sm sm:text-base']"
+        class="flex max-w-full items-center justify-center gap-1.5 rounded-md font-mono font-semibold tracking-wide tabular-nums transition hover:bg-current/12"
+        :class="valueClass"
         :style="{ opacity: chromeContrast > 45 ? 1 : 0.9 }"
         :aria-label="`Copy ${display}`"
         :title="display"
         @click="copy"
       >
         <!--
-          `min-w-0` is what actually lets this truncate: a flex child defaults
-          to min-width:auto and refuses to shrink below its content, so an
-          oklch() value would otherwise run straight over the next column.
+          `min-w-0` is what actually lets this truncate or wrap: a flex child
+          defaults to min-width:auto and refuses to shrink below its content,
+          so an oklch() value would otherwise run straight over the next column.
         -->
-        <span class="min-w-0 truncate">{{ display }}</span>
+        <span class="min-w-0" :class="valueTextClass">{{ display }}</span>
         <Check v-if="copied" class="size-3.5 shrink-0" />
         <Copy
           v-else
           class="size-3.5 shrink-0 opacity-0 transition group-hover/swatch:opacity-60 @max-[8rem]/swatch:hidden"
+          :class="rotated && 'hidden'"
         />
       </button>
 

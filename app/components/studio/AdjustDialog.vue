@@ -122,6 +122,33 @@ function startGesture() {
 }
 
 /**
+ * A held key is one gesture, like a drag is.
+ *
+ * A range input fires `change` after every arrow press, and the OS repeats a
+ * held key many times a second — so holding an arrow for two seconds ended
+ * and restarted the gesture on every tick and left dozens of undo entries
+ * behind one adjustment. The gesture now runs from the first key down to the
+ * key up; the `change` events in between are ignored.
+ */
+let keyHeld = false
+
+function onSliderKeydown(event: KeyboardEvent) {
+  if (event.repeat) return
+  keyHeld = true
+  startGesture()
+}
+
+function onSliderKeyup() {
+  if (!keyHeld) return
+  keyHeld = false
+  endGesture()
+}
+
+function onSliderChange() {
+  if (!keyHeld) endGesture()
+}
+
+/**
  * History boundary for a drag.
  *
  * Recorded on the first actual change rather than on pointer-down itself: the
@@ -490,7 +517,7 @@ watchDebounced(colorKey, () => void fetchName(), { debounce: 220 })
               to nobody and pointed at by nothing.
             -->
             <p v-if="textInvalid" id="adjust-value-error" role="alert" class="text-[11px] text-destructive">
-              Not a color this parser recognises. Check the syntax and try again.
+              Not a color this parser recognizes. Check the syntax and try again.
             </p>
           </div>
         </div>
@@ -565,9 +592,10 @@ watchDebounced(colorKey, () => void fetchName(), { debounce: 220 })
                   :aria-label="channel.name"
                   :aria-valuetext="displayValue(channel)"
                   @pointerdown="startGesture"
-                  @keydown="startGesture"
+                  @keydown="onSliderKeydown"
+                  @keyup="onSliderKeyup"
                   @input="applyChannel(channel.key, Number(($event.target as HTMLInputElement).value))"
-                  @change="endGesture"
+                  @change="onSliderChange"
                   @blur="endGesture"
                 />
               </div>
@@ -603,9 +631,10 @@ watchDebounced(colorKey, () => void fetchName(), { debounce: 220 })
                   aria-label="Alpha"
                   :aria-valuetext="`${(alpha * 100).toFixed(0)} percent`"
                   @pointerdown="startGesture"
-                  @keydown="startGesture"
+                  @keydown="onSliderKeydown"
+                  @keyup="onSliderKeyup"
                   @input="applyAlpha(Number(($event.target as HTMLInputElement).value))"
-                  @change="endGesture"
+                  @change="onSliderChange"
                   @blur="endGesture"
                 />
               </div>
