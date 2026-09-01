@@ -56,15 +56,33 @@ export function planGrid(
   const tolerance = options.tolerance ?? 1
 
   if (count <= 0 || width <= 0 || height <= 0) {
-    return { columns: 1, rows: 1, spans: [1], tileWidth: width, tileHeight: height }
+    // One span per item even here: a container still being measured reads as
+    // 0×0 for a tick, and a caller indexing `spans[i]` for its second item
+    // otherwise got `undefined` into a grid-column declaration.
+    return {
+      columns: 1,
+      rows: Math.max(1, count),
+      spans: new Array(Math.max(1, count)).fill(1),
+      tileWidth: width,
+      tileHeight: height,
+    }
   }
 
   let best = { columns: 1, rows: count, score: Number.POSITIVE_INFINITY, tileWidth: 0, tileHeight: 0 }
 
   for (let columns = 1; columns <= count; columns++) {
     const rows = Math.ceil(count / columns)
-    const tileWidth = (width - gap * (columns - 1)) / columns
-    const tileHeight = (height - gap * (rows - 1)) / rows
+    // A gap the box cannot afford is shrunk rather than honoured: with the
+    // gaps alone wider than the box, every column count failed and the
+    // placeholder above came back as a plan with zero-size tiles. The gaps
+    // may take at most half of each axis, so the tiles keep the other half.
+    const maxGap = Math.min(
+      columns > 1 ? width / (2 * (columns - 1)) : Number.POSITIVE_INFINITY,
+      rows > 1 ? height / (2 * (rows - 1)) : Number.POSITIVE_INFINITY,
+    )
+    const fitGap = Math.min(gap, maxGap)
+    const tileWidth = (width - fitGap * (columns - 1)) / columns
+    const tileHeight = (height - fitGap * (rows - 1)) / rows
     if (tileWidth <= 0 || tileHeight <= 0) continue
 
     // Log ratio so a 2:1 tile and a 1:2 tile score identically.

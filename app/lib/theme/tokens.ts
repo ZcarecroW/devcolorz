@@ -197,19 +197,27 @@ const SHADOW_SIZES: Record<string, { layers: ShadowLayer[] }> = {
 
 export const SHADOW_KEYS = ['2xs', 'xs', 'sm', 'DEFAULT', 'md', 'lg', 'xl', '2xl'] as const
 
-function px(value: string | number): number {
-  const n = typeof value === 'number' ? value : Number.parseFloat(value)
-  return Number.isFinite(n) ? n : 0
+/**
+ * A number out of a token, or the fallback when there is not one.
+ *
+ * The fallback covers a cleared field as well as a missing one: `??` only
+ * caught the missing case, so emptying the shadow opacity in the editor
+ * produced a shadow at 0% rather than the documented 10%, and disagreed with
+ * the build script that generates the shipped stylesheet from the same values.
+ */
+function px(value: string | number | undefined, fallback: number): number {
+  const n = typeof value === 'number' ? value : Number.parseFloat(value ?? '')
+  return Number.isFinite(n) ? n : fallback
 }
 
 /** Build the eight derived shadow values from a theme's shadow inputs. */
 export function deriveShadows(values: TokenValues): Record<string, string> {
-  const color = values['shadow-color'] ?? 'oklch(0 0 0)'
-  const opacity = px(values['shadow-opacity'] ?? '0.1')
-  const blur = px(values['shadow-blur'] ?? '3')
-  const spread = px(values['shadow-spread'] ?? '0')
-  const offsetX = px(values['shadow-offset-x'] ?? '0')
-  const offsetY = px(values['shadow-offset-y'] ?? '1')
+  const color = values['shadow-color'] || 'oklch(0 0 0)'
+  const opacity = px(values['shadow-opacity'], 0.1)
+  const blur = px(values['shadow-blur'], 3)
+  const spread = px(values['shadow-spread'], 0)
+  const offsetX = px(values['shadow-offset-x'], 0)
+  const offsetY = px(values['shadow-offset-y'], 1)
 
   const out: Record<string, string> = {}
   for (const size of SHADOW_KEYS) {

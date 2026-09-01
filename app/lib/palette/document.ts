@@ -133,14 +133,21 @@ export function stateFromPalette(item: PaletteSummary): PaletteState | null {
       const doc: PaletteDocColor = typeof entry === 'string' ? { hex: entry } : entry
       // The stored channels win when they are there: hex has already lost
       // anything outside sRGB, and re-parsing it would bake that loss in.
-      const parsed = doc?.oklch
+      // "There" means three finite numbers — a truncated tuple from another
+      // writer used to pass as a colour with undefined chroma and hue.
+      const tuple = Array.isArray(doc?.oklch) ? doc.oklch : null
+      const complete =
+        tuple !== null &&
+        tuple.length >= 3 &&
+        tuple.slice(0, 3).every((v) => typeof v === 'number' && Number.isFinite(v))
+      const parsed = complete
         ? ({
             mode: 'oklch',
-            l: doc.oklch[0],
-            c: doc.oklch[1],
-            h: doc.oklch[2],
+            l: tuple[0],
+            c: tuple[1],
+            h: tuple[2],
             // Absent in every document written before alpha was carried.
-            ...(doc.oklch.length > 3 ? { alpha: doc.oklch[3] } : {}),
+            ...(typeof tuple[3] === 'number' && Number.isFinite(tuple[3]) ? { alpha: tuple[3] } : {}),
           } satisfies Oklch)
         : parseColor(doc?.hex as string)
       if (!parsed) continue

@@ -11,6 +11,12 @@ import type { Oklch } from '@/lib/color/types'
 import type { ExportConfig } from './config'
 import { composeName, type Token, type TokenGraph } from './graph'
 
+export interface EmittedFile {
+  /** Path relative to the project, as the platform expects it. */
+  path: string
+  content: string
+}
+
 export interface Emitter {
   id: string
   label: string
@@ -19,7 +25,25 @@ export interface Emitter {
   language: string
   /** One line explaining when to reach for this format. */
   hint: string
+  /** The output as one readable text, for the panel and the clipboard. */
   emit(graph: TokenGraph): string
+  /**
+   * The output as the files it actually has to be split into, for downloads.
+   * Only formats whose target cannot take one file define this — Android
+   * keeps day and night values in two files that are each one XML document,
+   * and saved as a single file the pair is not well-formed.
+   */
+  files?(graph: TokenGraph): EmittedFile[]
+}
+
+/**
+ * The files an emitter produces, for a format that needs more than one.
+ *
+ * The default download is the single text `emit` returns, under the emitter's
+ * own extension.
+ */
+export function emittedFiles(emitter: Emitter, graph: TokenGraph, stem: string): EmittedFile[] {
+  return emitter.files?.(graph) ?? [{ path: `${stem}.${emitter.ext}`, content: emitter.emit(graph) }]
 }
 
 /* ------------------------------------------------------------------ *
@@ -89,6 +113,25 @@ function contrastNote(token: Token, config: ExportConfig): string {
   return ` /* ${parts.join(' · ')} */`
 }
 
+/**
+ * The selector for a mode override.
+ *
+ * `.dark` on its own only outranks the base rule when that rule is a single
+ * class or pseudo-class — `:root`, the default. Against `#app` or `.theme` it
+ * loses on specificity whatever the source order, and the whole override is
+ * dead CSS. For any other base selector the mode class is paired with it, on
+ * the same element and as an ancestor: `.dark#app, .dark #app` outranks
+ * `#app` wherever a toggle script is likely to put the class.
+ */
+function modeSelector(config: ExportConfig, modeClass: string): string {
+  const base = config.selector.trim()
+  if (/^(:root|html|body)$/i.test(base)) return modeClass
+  // Only a class, id, attribute or pseudo-class can follow another selector
+  // without a space; `html.theme` would otherwise become `.darkhtml.theme`.
+  const compound = /^[.#[:]/.test(base) ? `${modeClass}${base}, ` : ''
+  return `${compound}${modeClass} ${base}`
+}
+
 /** Emit the tokens of one mode as CSS declarations. */
 function declarations(graph: TokenGraph, mode: 'light' | 'dark', indent = '  '): string {
   const lines: string[] = []
@@ -124,10 +167,10 @@ export const cssEmitter: Emitter = {
         out += `\n@media (prefers-color-scheme: dark) {\n  ${config.selector} {\n${declarations(graph, 'dark', '    ')}\n  }\n}\n`
       }
       if (delivery === 'class' || delivery === 'both') {
-        out += `\n${config.darkClass} {\n${dark}\n}\n`
+        out += `\n${modeSelector(config, config.darkClass)} {\n${dark}\n}\n`
       }
       if (delivery === 'attribute') {
-        out += `\n${config.darkAttribute} {\n${dark}\n}\n`
+        out += `\n${modeSelector(config, config.darkAttribute)} {\n${dark}\n}\n`
       }
       if (delivery === 'both') {
         /*
@@ -148,7 +191,7 @@ export const cssEmitter: Emitter = {
          * dark OS with no class wins on the media `:root`; dark OS with the
          * light class wins here; light OS with the dark class wins above.
          */
-        out += `\n@media (prefers-color-scheme: dark) {\n  ${config.lightClass} {\n${declarations(graph, 'light', '    ')}\n  }\n}\n`
+        out += `\n@media (prefers-color-scheme: dark) {\n  ${modeSelector(config, config.lightClass)} {\n${declarations(graph, 'light', '    ')}\n  }\n}\n`
       }
     }
     return out
@@ -178,7 +221,10 @@ export const tailwind4Emitter: Emitter = {
     out += '}\n'
 
     if (graph.hasDark) {
-      out += '\n@custom-variant dark (&:is(.dark *));\n'
+      // The variant names the same class the values below are keyed on. A
+      // literal `.dark` here left `dark:` utilities looking for a class the
+      // user's own toggle never sets, once the class had been renamed.
+      out += `\n@custom-variant dark (&:where(${config.darkClass}, ${config.darkClass} *));\n`
       out += `\n${config.darkClass} {\n`
       for (const token of graph.tokens) {
         if (!token.dark) continue
@@ -450,8 +496,10 @@ export const svgEmitter: Emitter = {
     const list = tokens.length ? tokens : graph.tokens
     const w = 160
     const h = 200
-    const columns = Math.min(6, list.length)
-    const rows = Math.ceil(list.length / columns)
+    // At least one cell: with every colour excluded the grid used to be zero
+    // columns wide and its row count NaN, which no viewer opens.
+    const columns = Math.max(1, Math.min(6, list.length))
+    const rows = Math.max(1, Math.ceil(list.length / columns))
     let out = `<svg xmlns="http://www.w3.org/2000/svg" width="${columns * w}" height="${rows * h}" viewBox="0 0 ${columns * w} ${rows * h}" font-family="ui-sans-serif, system-ui, sans-serif">\n`
     out += `  <title>${xmlText(graph.title)}</title>\n`
     list.forEach((token, index) => {
@@ -477,34 +525,48 @@ export const svgEmitter: Emitter = {
  * Platforms
  * ------------------------------------------------------------------ */
 
+/** One Android resources document for one mode. */
+function androidResources(graph: TokenGraph, mode: 'light' | 'dark'): string {
+  const name = (t: Token) => t.name.replace(/-/g, '_')
+  const argb = (color: Oklch) => {
+    const rgb = toRgb(color)
+    const a = Math.round((color.alpha ?? 1) * 255)
+    const hex = hexToken(rgb)
+    return `#${a === 255 ? '' : a.toString(16).padStart(2, '0').toUpperCase()}${hex}`
+  }
+  let out = '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
+  for (const token of graph.tokens) {
+    const color = mode === 'light' ? token.light : token.dark
+    if (!color) continue
+    out += `    <color name="${name(token)}">${argb(color)}</color>\n`
+  }
+  return out + '</resources>\n'
+}
+
 export const androidEmitter: Emitter = {
   id: 'android',
   label: 'Android colors.xml',
   ext: 'xml',
   language: 'xml',
-  hint: 'Drop into `res/values/`. Dark values belong in `res/values-night/colors.xml`.',
+  hint: 'Drop into `res/values/`. Dark values belong in `res/values-night/colors.xml`, and the download gives you both files.',
   emit(graph) {
-    const name = (t: Token) => t.name.replace(/-/g, '_')
-    const argb = (color: Oklch) => {
-      const rgb = toRgb(color)
-      const a = Math.round((color.alpha ?? 1) * 255)
-      const hex = hexToken(rgb)
-      return `#${a === 255 ? '' : a.toString(16).padStart(2, '0').toUpperCase()}${hex}`
-    }
-    let out = '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
-    for (const token of graph.tokens) {
-      out += `    <color name="${name(token)}">${argb(token.light)}</color>\n`
-    }
-    out += '</resources>\n'
+    // Both documents on screen, each headed with where it goes. They are two
+    // files rather than one: an XML document has one root, and the download
+    // splits them accordingly.
+    let out = `<!-- res/values/colors.xml -->\n${androidResources(graph, 'light')}`
     if (graph.hasDark) {
-      out += '\n<!-- res/values-night/colors.xml -->\n<resources>\n'
-      for (const token of graph.tokens) {
-        if (!token.dark) continue
-        out += `    <color name="${name(token)}">${argb(token.dark)}</color>\n`
-      }
-      out += '</resources>\n'
+      out += `\n<!-- res/values-night/colors.xml -->\n${androidResources(graph, 'dark')}`
     }
     return out
+  },
+  files(graph) {
+    const files: EmittedFile[] = [
+      { path: 'values/colors.xml', content: androidResources(graph, 'light') },
+    ]
+    if (graph.hasDark) {
+      files.push({ path: 'values-night/colors.xml', content: androidResources(graph, 'dark') })
+    }
+    return files
   },
 }
 

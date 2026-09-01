@@ -56,3 +56,27 @@ describe('alpha survives every persistence path', () => {
     expect(decoded?.colors[0].alpha ?? 1).toBe(1)
   })
 })
+
+describe('links and documents that used to lose or corrupt colours', () => {
+  it('carries a wide-gamut colour through the packed link', async () => {
+    const p3red = { mode: 'oklch', l: 0.6486, c: 0.2995, h: 28.96 } as const
+    const encoded = await encodeState(state({ colors: [p3red], names: ['Red'] }))
+    const decoded = await decodeState(encoded)
+    expect(decoded?.colors[0].c).toBeCloseTo(0.2995, 3)
+    expect(decoded?.colors[0].l).toBeCloseTo(0.6486, 3)
+    expect(decoded?.names).toEqual(['Red'])
+  })
+
+  it('treats a malformed link as no link rather than an error', async () => {
+    await expect(decodeState('%')).resolves.toBeNull()
+    await expect(decodeState('v1r%E0%A4%A')).resolves.toBeNull()
+  })
+
+  it('falls back to hex when a stored channel tuple is incomplete', () => {
+    const doc = { version: 1, colors: [{ hex: '#3b82f6', oklch: [0.5] }] }
+    const read = stateFromPalette({ doc } as never)!
+    expect(read.colors).toHaveLength(1)
+    expect(read.colors[0].c).toBeGreaterThan(0.1)
+    expect(Number.isFinite(read.colors[0].h)).toBe(true)
+  })
+})

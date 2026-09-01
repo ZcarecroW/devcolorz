@@ -66,7 +66,9 @@ const num = (v, fallback) => {
 }
 
 function shadows(values) {
-  const color = values['shadow-color'] ?? 'oklch(0 0 0)'
+  // `||` rather than `??`, matching deriveShadows in app/lib/theme/tokens.ts:
+  // an emptied colour is a missing colour, not a shadow with no colour.
+  const color = values['shadow-color'] || 'oklch(0 0 0)'
   const opacity = num(values['shadow-opacity'], 0.1)
   const blur = num(values['shadow-blur'], 3)
   const spread = num(values['shadow-spread'], 0)

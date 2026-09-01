@@ -9,7 +9,7 @@
  * palette with scales and alpha ladders is a few thousand color conversions,
  * and nobody needs that on every keystroke.
  */
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { Check, Copy, Download, Minus, Plus, RotateCcw, X } from '@lucide/vue'
 import { refDebounced } from '@vueuse/core'
 import { toast } from 'vue-sonner'
@@ -61,7 +61,7 @@ import type {
   ExportConfig,
   NameCase,
 } from '@/lib/export/config'
-import { EMITTERS, EMITTERS_BY_ID } from '@/lib/export/emitters'
+import { EMITTERS, EMITTERS_BY_ID, emittedFiles } from '@/lib/export/emitters'
 import { buildGraph, composeName, stemsFor } from '@/lib/export/graph'
 import { useStudioStore } from '@/stores/studio'
 import { useSessionStore } from '@/stores/session'
@@ -140,12 +140,19 @@ const result = computed(() => {
   const snap = snapshot.value
   const chosen = EMITTERS_BY_ID[snap.emitterId] ?? EMITTERS[0]
   if (!snap.swatches.length) {
-    return { text: '', tokens: 0, error: 'Add a color to the palette first.' }
+    return {
+      text: '',
+      graph: null as ReturnType<typeof buildGraph> | null,
+      tokens: 0,
+      error: 'Add a color to the palette first.',
+    }
   }
   try {
     const graph = buildGraph(snap.swatches, snap.config, snap.title)
     return {
       text: chosen.emit(graph),
+      // Kept for the download, which may split the same graph into files.
+      graph: graph as ReturnType<typeof buildGraph> | null,
       tokens: graph.tokens.length,
       renames: graph.renames,
       error: null as string | null,
@@ -154,6 +161,7 @@ const result = computed(() => {
     // A bad combination of settings must not take the studio down with it.
     return {
       text: '',
+      graph: null as ReturnType<typeof buildGraph> | null,
       tokens: 0,
       renames: [] as Array<{ from: string; to: string }>,
       error: error instanceof Error ? error.message : 'That combination could not be generated.',
@@ -241,8 +249,10 @@ const derivedDarks = computed(() => {
  * over 25 something visibly changed weight.
  */
 function driftClass(drift: number): string {
-  if (drift < 10) return 'text-emerald-600 dark:text-emerald-400'
-  if (drift < 25) return 'text-amber-600 dark:text-amber-400'
+  // The app's own severity tokens, which follow the theme; a fixed green and
+  // amber did not.
+  if (drift < 10) return 'text-success'
+  if (drift < 25) return 'text-warning'
   return 'text-destructive'
 }
 
@@ -283,6 +293,21 @@ const overrideDefaults = computed(() => ({
 
 const overrideCount = computed(() => Object.keys(config.value.overrides).length)
 
+// Overrides are keyed by swatch id, and a swatch removed from the strip took
+// its row here with it but not its entry — the accordion went on counting an
+// override nothing in the list could show or clear.
+watch(
+  () => palette.swatches,
+  (list) => {
+    const present = new Set(list.map((swatch) => swatch.id))
+    const stale = Object.keys(config.value.overrides).filter((id) => !present.has(id))
+    if (!stale.length) return
+    const next = { ...config.value.overrides }
+    for (const id of stale) delete next[id]
+    patch({ overrides: next })
+  },
+)
+
 function setOverride(id: string, value: ColorOverride) {
   const next = { ...config.value.overrides }
   if (Object.keys(value).length === 0) delete next[id]
@@ -294,9 +319,13 @@ function setOverride(id: string, value: ColorOverride) {
 
 const copied = ref(false)
 
-const fileName = computed(
-  () => `${slugify(palette.title || 'palette')}.${emitter.value.ext}`,
-)
+/** What the download button offers: one file by name, or a count of files. */
+const fileName = computed(() => {
+  const stem = slugify(palette.title || 'palette')
+  const graph = result.value.graph
+  const files = graph ? emittedFiles(emitter.value, graph, stem) : []
+  return files.length > 1 ? `${files.length} files` : `${stem}.${emitter.value.ext}`
+})
 
 async function copy() {
   if (!result.value.text) return
@@ -311,17 +340,39 @@ async function copy() {
   }
 }
 
-function download() {
-  if (!result.value.text) return
-  const url = URL.createObjectURL(new Blob([result.value.text], { type: 'text/plain;charset=utf-8' }))
+function saveFile(name: string, content: string) {
+  const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }))
   const link = document.createElement('a')
   link.href = url
-  link.download = fileName.value
+  link.download = name
   document.body.append(link)
   link.click()
   link.remove()
   // Revoking synchronously cancels the download in Safari; one tick is enough.
   setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+/**
+ * Download the output as the file or files it has to be.
+ *
+ * Most formats are one file. Android is two — a day and a night resource
+ * document — and saved as one `.xml` the pair had two roots and no parser
+ * would open it. A format that declares its files gets one download each,
+ * named by where each belongs.
+ */
+function download() {
+  if (!result.value.text || !result.value.graph) return
+  const stem = slugify(palette.title || 'palette')
+  const files = emittedFiles(emitter.value, result.value.graph, stem)
+  for (const file of files) {
+    const name = files.length === 1 ? file.path : `${stem}-${file.path.replace(/\//g, '-')}`
+    saveFile(name, file.content)
+  }
+  if (files.length > 1) {
+    toast.success(`Downloaded ${files.length} files`, {
+      description: files.map((file) => file.path).join(' and ') + ' — put each where its name says.',
+    })
+  }
 }
 
 function resetAll() {

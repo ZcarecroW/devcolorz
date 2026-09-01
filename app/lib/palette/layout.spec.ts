@@ -89,3 +89,22 @@ describe('planGrid', () => {
     expect(withGap.tileWidth).toBeLessThan(900 / withGap.columns)
   })
 })
+
+describe('planGrid under conditions it used to give up on', () => {
+  it('never returns zero-size tiles when the gap alone would overflow the box', () => {
+    const plan = planGrid(50, 100, 100, { gap: 20 })
+    expect(plan.tileWidth).toBeGreaterThan(0)
+    expect(plan.tileHeight).toBeGreaterThan(0)
+    expect(plan.spans).toHaveLength(50)
+  })
+
+  it('keeps one span per item while the container is still unmeasured', () => {
+    expect(planGrid(10, 0, 0).spans).toHaveLength(10)
+  })
+
+  it('honours an affordable gap exactly', () => {
+    const plan = planGrid(4, 400, 400, { gap: 8 })
+    expect(plan.columns).toBe(2)
+    expect(plan.tileWidth).toBeCloseTo(196, 6)
+  })
+})
