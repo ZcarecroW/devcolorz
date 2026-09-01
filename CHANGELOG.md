@@ -1,5 +1,210 @@
 # Changelog
 
+## 1.6.0 — 2026-09-02
+
+A bug-fix pass over the whole project: every module read end to end, the
+interface driven in a browser at desktop and phone widths, and the backend
+exercised from a fresh install. Sixty-odd findings, from arithmetic in the
+colour engine to a toolbar that fell off the edge of a 1280-pixel screen.
+Minor rather than patch: share links and the Android export change shape, and
+there is a schema migration.
+
+### The colour engine
+
+- **"Solve for contrast" doubled back on itself against a mid-tone surface.**
+  Contrast is symmetric — a colour a little lighter than a gray surface scores
+  the same as one a little darker — and the solver scanned the whole lightness
+  range, so a ramp against a gray reference darkened for four steps and then
+  climbed to near-white for the rest. It now stays on one side of the surface.
+- **Radix dark ramps collapsed steps in a narrow band.** With the floor at 0.4
+  and the ceiling at 0.6 — both values the export panel offers — eight
+  light-mode inputs landed on one dark value, so four consecutive Tailwind
+  steps were the same colour. The anchors are fractions of the band now, and
+  at the default band they reproduce the old values exactly.
+- **The "Digital (HSL)" wheel was the perceptual wheel with a different
+  label.** It rotated in OKLCH like the option next to it, while its own hint
+  explained how unevenly HSL spaces its hues. It has a measured wheel of its
+  own now, built the way the artistic one is.
+- **A golden-ratio channel could not satisfy the distance requirement.** The
+  sequence never draws from the generator, so all forty retries for a colour
+  produced the same value, and two channels both set to it moved in lockstep
+  along one diagonal of the space. Retries now move along the sequence, and
+  each channel has its own offset.
+- **A split complementary at zero spread put the same colour in twice.** Its
+  seed list starts with two coincident hues, and returned as-is because it was
+  already the right length. Coincident seeds are one seed now.
+- **Crossed bounds turned "Preserve contrast" into a naive flip.** A floor
+  above the ceiling meant the solver ran no iterations and returned its
+  starting guess. The band is put in order first, for every strategy.
+- **The HSL flip was two different algorithms.** Going dark it flipped in HSL;
+  coming back it flipped in OKLCH. Both directions use HSL now.
+- **Display P3 gamut mapping produced sRGB.** The clip and chroma-reduction
+  steps converted through sRGB whatever gamut was asked for.
+- **A curve of zero or below made every scale step the same colour**, and a
+  negative one made nine of eleven steps black. The exponent has a floor.
+- **The edges distribution left the range at a negative spread**, and an alpha
+  above 1 was silently dropped rather than clamped.
+
+### Links, documents and exports
+
+- **The packed share link clipped wide-gamut colours.** It claimed to carry
+  everything and carried six hex digits per colour, so a Display P3 red lost
+  fourteen percent of its chroma in transit. Links written from now on carry
+  the OKLCH channels as well; older links still read, and older versions still
+  read the new ones.
+- **A malformed link threw instead of reading as no link.** A stray `%` from
+  a truncated paste rejected the promise every other bad input turns into a
+  quiet null.
+- **A document with a truncated channel tuple produced a colour with undefined
+  chroma and hue.** Three finite numbers are required; anything less falls
+  back to the hex.
+- **The SVG sheet was invalid with every colour excluded**: zero columns wide
+  and `NaN` rows tall.
+- **The Android export was one file with two roots.** Day and night resources
+  belong in two files, and saved as one `.xml` the pair was not well-formed.
+  The download now produces `values/colors.xml` and `values-night/colors.xml`.
+- **The Tailwind v4 variant named `.dark` whatever the dark class was set
+  to**, so renaming the class left `dark:` utilities looking for one that no
+  toggle set.
+- **A CSS dark override could never beat a base selector of higher
+  specificity.** With the selector set to `#app` the `.dark` block was dead
+  CSS. It is paired with the base selector now, on the same element and as an
+  ancestor.
+- **The boxes layout could plan zero-size tiles** when the gap alone was wider
+  than the box, and returned one span for ten items while the container was
+  still unmeasured.
+- **Clearing the shadow opacity in the theme editor gave a 0% shadow** rather
+  than the documented 10%, and disagreed with the build script that generates
+  the shipped stylesheet from the same values.
+
+### The studio
+
+- **Long values were cut to "oklch(80…".** The column turned its label on its
+  side below one fixed width that was right for a hex and wrong for anything
+  longer. The threshold follows the notation now, and in the boxes and cards
+  layouts — which cannot rotate — the value wraps instead of ending in an
+  ellipsis.
+- **On a 1280-pixel screen the toolbar's last three controls sat past the
+  right edge.** Wrapping was switched off from that width on the assumption
+  that one row fits there; it does not until about 1400. It wraps only when it
+  must, and the layout captions wait for a wider screen.
+- **The phone toolbar was five rows tall.** The hover-only explanations,
+  which cannot open on a touch screen, and the keyboard cheat sheet step
+  aside below the small breakpoint.
+- **Three icon-only buttons had no accessible name on a phone**, and the four
+  layout buttons were announced by their whole explanatory paragraph.
+- **Reloading the page said "Loaded 5 colors from the link."** The studio
+  rewrites its own address as you work, so a reload arrived through the same
+  door as a colleague's link. The tab remembers what it wrote.
+- **The accessibility panel mislabelled the simulation** after the toolbar
+  had switched it, and flicking its switch brought the stale one back.
+- **Replacing the palette with a scale or an image kept the locks**, pinning
+  colours the user never chose and refusing every later roll on them.
+- **Holding an arrow key on a slider left dozens of undo entries**, one per
+  key repeat. A hold is one gesture now, like a drag. Ctrl+Z also works while
+  a slider has focus.
+- **`+` and `−` at the limits did nothing and said nothing**, from the keys and
+  from the command palette. They say why now.
+- **Dropping two images in quick succession could revert to the first** when
+  the larger finished decoding last, and "Add to palette" recorded one undo
+  entry per colour.
+- **Pasting an image worked only on the Image tab**, while the cheat sheet
+  promised it everywhere. Pasted anywhere in the studio, an image now opens
+  the tab and lands.
+- **The seed field fought the typist**: a leading zero vanished under the
+  cursor and a minus sign could only be pasted.
+- **The Per-color badge counted overrides for colours no longer in the
+  palette.**
+- **Contrast-matrix cells shrank to ten pixels** for a large palette, inside
+  the one panel whose job is accessibility. Twenty-four is the floor; the
+  matrix scrolls past it.
+- **Dragging a swatch showed no drop target.** The swatch under the pointer is
+  outlined.
+- **The dark-mode drift readout used fixed green and amber** instead of the
+  theme's own success and warning colours.
+
+### Pages and the console
+
+- **A settings save with one refused field was reported as if nothing had
+  been saved, when its neighbours had.** The server wrote the accepted keys
+  before reporting the rejection, so the form showed every field as unsaved
+  while most were live and Discard reverted a form whose changes were already
+  in effect. A save is all or nothing now.
+- **The theme editor edited the mode you were not looking at** after the
+  header's appearance menu switched the app. The pills and rows follow the
+  app.
+- **The setup wizard threw away the session it had just been given.** The
+  server signs the new administrator in; the wizard read only the two tokens,
+  so the header went on offering "Sign in". It adopts the session and offers
+  the admin console.
+- **Switching admin tabs discarded unsaved settings.** A tab panel unmounts
+  when it is not showing. The Settings panel stays mounted.
+- **A pasted `?tab=system` link did nothing if the console was already
+  open**, since the tab was read from the address once. It follows the
+  address now.
+- **The outbox could show rows for a filter no longer selected** when two
+  loads overlapped. The same stale-response guard the other lists use.
+- **The sign-up button was enabled before the captcha was solved**, unlike the
+  reset form's.
+- **Two quick preference picks could save in the wrong order**, and a fast
+  double-click on a heart could toggle a like twice.
+- **Revoking someone's sessions left the overview's session count stale.**
+- **The Users and outbox tables scrolled sideways inside their card on a
+  phone**, with the row menu — and the delete in it — off-screen. Columns a
+  phone can spare are hidden there instead.
+- **Focus stayed on the old page after a navigation.** It moves to the new
+  content, so the next Tab starts there and a screen reader hears the change.
+- A handful of British spellings in American-English copy.
+
+### The server
+
+- **Update checks failed on PHP 8.2** — the application's own minimum. The
+  updater named two curl constants that arrived in 8.3, and the self-test
+  reported the host able to check. Older hosts use the bitmask constants.
+- **The sync endpoint applied none of the palette rules.** Empty palettes,
+  forty-one colours and megabyte titles went straight in, past the instance's
+  quota. It validates like a single create now.
+- **Changing the password or address and deleting the account checked the
+  password under no lockout**, so a stolen session cookie could try ninety
+  passwords a minute. They share the sign-in form's lockout now.
+- **A password reset left the lockout in place**, so someone locked out by a
+  guesser reset their password and still could not sign in.
+- **An anonymous request for a private palette got 401 where a missing one
+  got 404**, confirming the existence the 404 is there to hide.
+- **A blank site address was accepted**, which made mail links and the
+  exposure probe trust whatever Host header a request carried; and a
+  rate-limit bucket of any shape was stored and silently replaced by the
+  built-in default at read time. Both are refused with a reason.
+- **The prune job scanned three whole tables.** None of its columns led an
+  index, and one predicate was an expression no index can serve. Migration
+  `005_prune_indexes` adds the indexes; the predicate is a plain comparison.
+- **Retrying one outbox message could send five others** and report their
+  outcome as its own.
+- The updater now checks directory entries in an archive like files, treats
+  `Config.php` as `config.php` on a case-folding filesystem, and an empty
+  preferences object is stored as an object rather than a list.
+
+### Developing
+
+- **Signing in from `npm run dev` was impossible.** The API refuses a write
+  whose Origin is not its own host, and the dev proxy forwarded the browser's.
+  It rewrites Origin now.
+- **A chunk that failed to load after an update left the pane blank.** Every
+  page and template is a hashed chunk, and the built-in updater replaces
+  them under any open tab. The page reloads once and picks up the new index.
+- The smoke test now exercises `cron.php` with its real token from a fresh
+  install, and asserts the atomic save, the base-URL guard, sync validation
+  and the anonymous 404. Twenty-five unit tests cover the engine and library
+  fixes.
+
+### Upgrading
+
+Upload the contents of the ZIP over your installation, or let an installation
+running 1.4.0 or later do it for itself from **Admin → System → Updates**. Do
+**not** overwrite `config.php` or `storage/`. Migration `005_prune_indexes`
+runs on the first request and only adds indexes. Palettes and links saved by
+earlier versions are read unchanged.
+
 ## 1.5.0 — 2026-08-23
 
 **A MILELO link in the header**, beside the GitHub mark. MILELO is a primary
