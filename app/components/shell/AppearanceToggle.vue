@@ -28,7 +28,7 @@ const options: Array<{ value: Appearance; label: string; icon: typeof Sun; hint:
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <Button variant="ghost" size="icon" aria-label="Appearance">
+      <Button variant="ghost" size="icon" class="shrink-0" aria-label="Appearance">
         <Sun v-if="theme.mode === 'light'" />
         <Moon v-else />
       </Button>

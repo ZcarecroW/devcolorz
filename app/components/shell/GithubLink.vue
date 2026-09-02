@@ -11,7 +11,7 @@ import { PROJECT_URL } from '@/lib/project'
 </script>
 
 <template>
-  <Button as-child variant="ghost" size="icon" class="text-muted-foreground">
+  <Button as-child variant="ghost" size="icon" class="shrink-0 text-muted-foreground">
     <a
       :href="PROJECT_URL"
       target="_blank"

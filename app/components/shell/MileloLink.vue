@@ -25,7 +25,7 @@ const FACTS = [
         :href="MILELO_URL"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex size-9 items-center justify-center rounded-md transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        class="inline-flex size-9 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         aria-label="MILELO School in Arusha, Tanzania — free education, free meals (opens in a new tab)"
       >
         <!--

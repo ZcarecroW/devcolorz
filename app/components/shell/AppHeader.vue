@@ -75,8 +75,16 @@ async function signOut() {
 </script>
 
 <template>
+  <!--
+    Every mark on the right is `shrink-0`, and the gaps close up below `sm`:
+    on a 375px screen the row used to be about 45px too wide, and flex took
+    the difference out of the one item that had no minimum — the MILELO link,
+    whose mark was crushed to nothing while the wordmark beside it kept its
+    space. What gives now is the brand text, which truncates, and the "Sign
+    in" caption, which becomes its icon.
+  -->
   <header
-    class="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur-sm supports-[backdrop-filter]:bg-background/70 md:px-4"
+    class="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-1 border-b bg-background/85 px-3 backdrop-blur-sm supports-[backdrop-filter]:bg-background/70 sm:gap-2 md:px-4"
   >
     <Sheet>
       <SheetTrigger as-child>
@@ -103,7 +111,7 @@ async function signOut() {
       </SheetContent>
     </Sheet>
 
-    <RouterLink :to="{ name: 'studio' }" class="flex items-center gap-2 rounded-md pr-2">
+    <RouterLink :to="{ name: 'studio' }" class="flex min-w-0 items-center gap-2 rounded-md pr-1 sm:pr-2">
       <BrandMark />
     </RouterLink>
 
@@ -123,7 +131,7 @@ async function signOut() {
       </Button>
     </nav>
 
-    <div class="flex-1" />
+    <div class="min-w-2 flex-1" />
 
     <MileloLink />
     <GithubLink />
@@ -132,7 +140,7 @@ async function signOut() {
     <template v-if="session.ready">
       <DropdownMenu v-if="session.isAuthenticated">
         <DropdownMenuTrigger as-child>
-          <Button variant="ghost" size="icon" class="rounded-full" aria-label="Account menu">
+          <Button variant="ghost" size="icon" class="shrink-0 rounded-full" aria-label="Account menu">
             <span
               class="flex size-7 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground"
             >
@@ -162,16 +170,18 @@ async function signOut() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <div v-else-if="session.meta?.installed" class="flex items-center gap-1">
+      <div v-else-if="session.meta?.installed" class="flex shrink-0 items-center gap-1">
         <Button as-child variant="ghost" size="sm">
-          <RouterLink :to="{ name: 'login' }"><User /> Sign in</RouterLink>
+          <RouterLink :to="{ name: 'login' }" aria-label="Sign in" title="Sign in">
+            <User /><span class="hidden sm:inline">Sign in</span>
+          </RouterLink>
         </Button>
         <Button v-if="session.canRegister" as-child size="sm" class="hidden sm:inline-flex">
           <RouterLink :to="{ name: 'register' }">Create account</RouterLink>
         </Button>
       </div>
 
-      <Button v-else-if="session.needsSetup" as-child size="sm" variant="destructive">
+      <Button v-else-if="session.needsSetup" as-child size="sm" variant="destructive" class="shrink-0">
         <RouterLink :to="{ name: 'setup' }"><Shield /> Finish setup</RouterLink>
       </Button>
     </template>
