@@ -13,6 +13,7 @@
 
 import { onBeforeUnmount, onMounted } from 'vue'
 import { toast } from 'vue-sonner'
+import { useSavePalette } from '@/composables/useSavePalette'
 import { allLockedNotice, lastColorNotice, paletteFullNotice } from '@/lib/palette/notices'
 import { MAX_SWATCHES, usePaletteStore } from '@/stores/palette'
 import { useStudioStore } from '@/stores/studio'
@@ -34,6 +35,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { keys: ['+'], label: 'Add a color', group: 'Palette' },
   { keys: ['−'], label: 'Remove the last unlocked color', group: 'Palette' },
   { keys: ['S'], label: 'Shuffle the order', group: 'Palette' },
+  { keys: ['Ctrl', 'Shift', 'S'], label: 'Save to your library', group: 'Palette' },
   { keys: ['Ctrl', 'Z'], label: 'Undo', group: 'Palette' },
   { keys: ['Ctrl', 'Shift', 'Z'], label: 'Redo', group: 'Palette' },
   { keys: ['Ctrl', 'Shift', 'C'], label: 'Copy the palette as CSS', group: 'Clipboard' },
@@ -125,6 +127,7 @@ export function useKeyboardShortcuts() {
   const palette = usePaletteStore()
   const studio = useStudioStore()
   const theme = useThemeStore()
+  const saver = useSavePalette()
 
   async function copyCss() {
     const css = palette.swatches
@@ -200,6 +203,13 @@ export function useKeyboardShortcuts() {
         case 'k':
           event.preventDefault()
           studio.commandOpen = !studio.commandOpen
+          return
+        case 's':
+          // Ctrl+S belongs to the browser; the Shift variant is ours.
+          if (event.shiftKey) {
+            event.preventDefault()
+            void saver.save()
+          }
           return
         case 'c':
           if (event.shiftKey) {

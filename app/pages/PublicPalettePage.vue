@@ -16,6 +16,7 @@ import { ArrowLeft, Check, Copy, Eye, Heart, Link2, Wand2 } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import InfoHint from '@/components/common/InfoHint.vue'
 import { bandsFor, encodeForGenerator, relativeTime } from '@/lib/palette/document'
+import { rememberLink } from '@/lib/palette/identity'
 import type { PaletteBand, PaletteDetail } from '@/lib/palette/document'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -27,7 +28,6 @@ import type { Oklch, Swatch } from '@/lib/color/types'
 import { DEFAULT_EXPORT_CONFIG } from '@/lib/export/config'
 import { EMITTERS_BY_ID } from '@/lib/export/emitters'
 import { buildGraph } from '@/lib/export/graph'
-import { usePaletteStore } from '@/stores/palette'
 
 const SNIPPET_TABS = [
   { id: 'css', label: 'CSS' },
@@ -36,7 +36,6 @@ const SNIPPET_TABS = [
 
 const route = useRoute()
 const router = useRouter()
-const palette = usePaletteStore()
 
 const detail = ref<PaletteDetail | null>(null)
 const loading = ref(true)
@@ -230,9 +229,9 @@ async function openInGenerator() {
     toast.error('That palette has no readable colors')
     return
   }
-  palette.title = item.title
-  // Somebody else's record: opening it must not claim their uuid.
-  palette.paletteUuid = null
+  // Somebody else's record: the studio gets its title and no saved record, so
+  // opening it cannot claim their uuid and Save there makes a copy of your own.
+  rememberLink(encoded, { uuid: null, title: item.title, dirty: false })
   await router.push({ name: 'shared', params: { state: encoded } })
 }
 </script>

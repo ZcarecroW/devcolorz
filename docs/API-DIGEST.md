@@ -1717,6 +1717,37 @@ export declare const MILELO_ICON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg
 export declare const MILELO_URL = "https://www.milelo.de/";
 ```
 
+## `palette/identity.ts`
+
+```ts
+/**
+ * What a tab knows about the palette in its own address bar.
+ *
+ * The studio rewrites the URL as you work, so after a reload the palette
+ * arrives through the same door as a colleague's link — with nothing to say
+ * whether it is the record saved a minute ago as "Harbour" or a stranger's.
+ * The pages that hand a palette to the studio, and the studio itself, leave a
+ * note here beside the link they wrote: which saved record it is, its title,
+ * and whether it has changed since it was saved. A link that arrives without
+ * a matching note is foreign, and is treated as one.
+ *
+ * Session storage, deliberately: it is per tab and survives a reload, which is
+ * exactly the distinction. Local storage would let one tab's palette claim
+ * another tab's saved record.
+ */
+export interface PaletteIdentity {
+    /** The saved record this palette is, or null when it has never been saved. */
+    uuid: string | null;
+    title: string;
+    /** True when the palette has changed since it was last saved. */
+    dirty: boolean;
+}
+/** Leave the note beside `state`, replacing whatever was there. */
+export declare function rememberLink(state: string, identity: PaletteIdentity): void;
+/** The note beside `state`, or null when this tab never wrote that link. */
+export declare function identityFor(state: string): PaletteIdentity | null;
+```
+
 ## `palette/layout.ts`
 
 ```ts

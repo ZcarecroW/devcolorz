@@ -10,6 +10,7 @@
  */
 import { Download, Eye, Palette, Sparkles } from '@lucide/vue'
 import type { Component } from 'vue'
+import { useSavePalette } from '@/composables/useSavePalette'
 import {
   CommandDialog,
   CommandEmpty,
@@ -48,6 +49,7 @@ interface CommandGroupDef {
 const palette = usePaletteStore()
 const studio = useStudioStore()
 const theme = useThemeStore()
+const saver = useSavePalette()
 
 /**
  * The preview templates the studio can switch to. This mirrors the preview
@@ -107,6 +109,19 @@ const groups: CommandGroupDef[] = [
     heading: 'Palette',
     icon: Palette,
     items: [
+      {
+        id: 'pal-save',
+        label: 'Save to your library',
+        hint: 'Writes over the palette this was opened from, or creates one',
+        keys: 'Ctrl Shift S',
+        run: () => void saver.save(),
+      },
+      {
+        id: 'pal-save-new',
+        label: 'Save as a new palette',
+        hint: 'A separate copy, leaving the saved one as it is',
+        run: () => void saver.save({ asNew: true }),
+      },
       { id: 'pal-add', label: 'Add a color', keys: '+', run: addOne },
       {
         id: 'pal-remove',

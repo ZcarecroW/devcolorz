@@ -8,12 +8,17 @@
  * without the page having to thread props down, and the page stays a layout.
  */
 import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
 import {
   ArrowUpDown,
+  Check,
+  ChevronDown,
   Columns3,
   Eye,
   LayoutGrid,
+  LoaderCircle,
   Rows3,
+  Save,
   SquareStack,
   Link2,
   Minus,
@@ -46,6 +51,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select'
+import { useSavePalette } from '@/composables/useSavePalette'
 import { FORMAT_HINTS, FORMAT_LABELS } from '@/lib/color/convert'
 import { CVD_IDS, CVD_TYPES, type CvdType } from '@/lib/color/cvd'
 import { PALETTE_VIEWS, VIEW_BY_ID, type PaletteView } from '@/lib/palette/layout'
@@ -100,6 +106,23 @@ const VIEW_ICONS: Record<PaletteView, typeof Columns3> = {
 
 const simulating = computed(() => studio.cvd !== 'none')
 const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
+
+/**
+ * Saving, from the toolbar.
+ *
+ * The button says what pressing it will do: create a record, write over the
+ * one this palette came from, or nothing, because nothing has changed since.
+ * The last of those is disabled rather than hidden, so the "Saved" it shows
+ * is also the confirmation.
+ */
+const saver = useSavePalette()
+
+const saveLabel = computed(() => {
+  if (!saver.signedIn.value) return 'Save to your library — sign in first'
+  if (!saver.savedHere.value) return 'Save to your library'
+  if (saver.upToDate.value) return 'Saved — nothing has changed since'
+  return `Save changes to “${palette.title.trim() || 'Untitled palette'}”`
+})
 </script>
 
 <template>
@@ -371,6 +394,73 @@ const cvdLabel = computed(() => CVD_TYPES[studio.cvd].label)
       </div>
 
       <div class="hidden flex-1 xl:block" />
+
+      <!-- Save -->
+      <div
+        v-if="saver.available.value"
+        class="flex items-center"
+        role="group"
+        aria-label="Save to your library"
+      >
+        <Button
+          variant="outline"
+          size="sm"
+          class="gap-1.5 rounded-r-none"
+          :class="saver.upToDate.value && 'text-muted-foreground'"
+          :disabled="saver.saving.value || saver.upToDate.value"
+          :aria-label="saveLabel"
+          :title="saveLabel"
+          @click="saver.save()"
+        >
+          <LoaderCircle v-if="saver.saving.value" class="animate-spin" />
+          <Check v-else-if="saver.upToDate.value" />
+          <Save v-else />
+          <span class="hidden sm:inline" aria-hidden="true">
+            {{ saver.upToDate.value ? 'Saved' : 'Save' }}
+          </span>
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              class="-ml-px rounded-l-none"
+              aria-label="More ways to save"
+              title="More ways to save"
+            >
+              <ChevronDown />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" class="w-64">
+            <DropdownMenuItem
+              v-if="saver.savedHere.value"
+              class="items-start gap-2"
+              :disabled="saver.saving.value"
+              @select="saver.save({ asNew: true })"
+            >
+              <Save class="mt-0.5" />
+              <span class="flex flex-col gap-0.5">
+                <span class="text-sm">Save as a new palette</span>
+                <span class="text-[11px] leading-snug text-muted-foreground">
+                  A separate copy. The one this was opened from stays as it is.
+                </span>
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem v-else class="items-start gap-2" :disabled="saver.saving.value" @select="saver.save()">
+              <Save class="mt-0.5" />
+              <span class="flex flex-col gap-0.5">
+                <span class="text-sm">Save to your library</span>
+                <span class="text-[11px] leading-snug text-muted-foreground">
+                  Private until you say otherwise. Saving again then overwrites it.
+                </span>
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem as-child>
+              <RouterLink :to="{ name: 'library' }"><LayoutGrid /> Open the library</RouterLink>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       <!-- Share and help -->
       <div class="flex items-center gap-1">

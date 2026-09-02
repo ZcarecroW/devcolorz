@@ -20,6 +20,7 @@ import {
   docFromState,
   encodeForGenerator,
 } from '@/lib/palette/document'
+import { rememberLink } from '@/lib/palette/identity'
 import type {
   PaletteListResponse,
   PaletteSummary,
@@ -171,9 +172,7 @@ async function saveCurrent() {
       visibility: 'private',
     })
     items.value = [created, ...items.value]
-    palette.paletteUuid = created.uuid
-    palette.title = created.title
-    palette.dirty = false
+    palette.markSaved(created.uuid, created.title)
     toast.success('Saved to your library', {
       description: 'Private until you say otherwise.',
     })
@@ -231,7 +230,8 @@ async function remove(item: PaletteSummary) {
   try {
     await api.delete(`/palettes/${item.uuid}`)
     items.value = items.value.filter((entry) => entry.uuid !== item.uuid)
-    if (palette.paletteUuid === item.uuid) palette.paletteUuid = null
+    // The studio may still be showing this one; saving there must now create.
+    if (palette.paletteUuid === item.uuid) palette.detach(palette.title)
     toast.success('Deleted')
   } catch (err) {
     toast.error(describe(err, 'That palette could not be deleted.'))
@@ -246,8 +246,10 @@ async function openInGenerator(item: PaletteSummary) {
     toast.error('That palette has no readable colors')
     return
   }
-  palette.title = item.title
-  palette.paletteUuid = item.uuid
+  // The note the studio reads beside the link: this is the saved record, so
+  // Save there overwrites it rather than making a copy — and a reload keeps
+  // it the saved record.
+  rememberLink(encoded, { uuid: item.uuid, title: item.title, dirty: false })
   await router.push({ name: 'shared', params: { state: encoded } })
 }
 </script>

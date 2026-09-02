@@ -7,7 +7,7 @@
  * before it does and the strip keeps the space it needs down to mobile.
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Braces, Image as ImageIcon, Save, ScanEye, Shuffle, Sliders } from '@lucide/vue'
 import { useMediaQuery } from '@vueuse/core'
 import { toast } from 'vue-sonner'
@@ -28,6 +28,7 @@ import { useSessionStore } from '@/stores/session'
 import { useStudioStore } from '@/stores/studio'
 import type { GamutStrategy } from '@/lib/color/types'
 import { decodeState, encodeState, type PaletteState } from '@/lib/palette/url'
+import { identityFor, rememberLink, type PaletteIdentity } from '@/lib/palette/identity'
 import { formatColor } from '@/lib/color/convert'
 
 const palette = usePaletteStore()
@@ -70,34 +71,30 @@ async function applyIncoming(next: PaletteState | null, quiet = false) {
   if (sameColors && sameNames && sameLocks) return
   if (palette.count) palette.loadState(next, 'Open shared palette')
   else palette.init(next)
-  if (!quiet) toast.success(`Loaded ${next.colors.length} colors from the link`)
+  if (quiet) return
+  // A link from outside is nobody's saved record and carries no title. Left
+  // in place, "Harbour" would have sat above a stranger's colours and Save
+  // would have written them over the record called Harbour.
+  palette.detach()
+  toast.success(`Loaded ${next.colors.length} colors from the link`)
 }
 
-/**
- * The last link this tab wrote into its own address bar.
+/*
+ * The note beside the link this tab wrote.
  *
  * The studio rewrites the URL as you work, so after a reload the palette
- * arrives through the same door as a colleague's link — and was greeted with
- * the same "Loaded 5 colors from the link", for colours the visitor had never
- * left. Session storage is per tab and survives a reload, which is exactly
- * the distinction: a link opened from elsewhere never matches it.
+ * arrives through the same door as a colleague's link — and was once greeted
+ * with "Loaded 5 colors from the link", for colours the visitor had never
+ * left. The note says the link is this tab's own, and also which saved record
+ * it is, what it is called and whether it has unsaved changes, so a reload
+ * brings the saved palette back as the saved palette. See lib/palette/identity.
  */
-const OWN_LINK_KEY = 'devcolorz:own-link'
-
-function rememberOwnLink(state: string) {
-  try {
-    sessionStorage.setItem(OWN_LINK_KEY, state)
-  } catch {
-    // Storage being unavailable only costs the reload its silence.
-  }
+function identity(): PaletteIdentity {
+  return { uuid: palette.paletteUuid, title: palette.title, dirty: palette.dirty }
 }
 
-function isOwnLink(state: string): boolean {
-  try {
-    return sessionStorage.getItem(OWN_LINK_KEY) === state
-  } catch {
-    return false
-  }
+function remember(state: unknown = route.params.state) {
+  if (typeof state === 'string' && state) rememberLink(state, identity())
 }
 
 /**
@@ -120,7 +117,9 @@ onMounted(async () => {
   // button.
   const incoming = typeof encoded === 'string' && encoded ? await decodeState(encoded) : null
   if (incoming) {
-    await applyIncoming(incoming, isOwnLink(encoded as string))
+    const known = identityFor(encoded as string)
+    await applyIncoming(incoming, known !== null)
+    if (known) palette.adoptIdentity(known)
     return
   }
   if (encoded) {
@@ -160,6 +159,10 @@ onMounted(async () => {
     }
     palette.init(null)
   }
+  // A palette carried in through the store — back from the library by the
+  // header's link, say — is not in the address bar yet. Written now rather
+  // than after the first edit, so a reload keeps it.
+  scheduleUrlSync()
 })
 
 /**
@@ -204,30 +207,47 @@ let urlTimer: number | undefined
 let selfWritten: string | null = null
 let leaving = false
 
-watch(
-  () => palette.swatches,
-  () => {
-    window.clearTimeout(urlTimer)
-    urlTimer = window.setTimeout(async () => {
-      if (leaving || !palette.count) return
-      const state = await encodeState(palette.toState())
-      // Re-checked after the await: the user may have navigated away, and a
-      // pending replace would then pull them back to the studio.
-      if (leaving || route.params.state === state) return
-      selfWritten = state
-      rememberOwnLink(state)
-      void router.replace({ name: 'shared', params: { state } })
-    }, 500)
-  },
-  { deep: false },
-)
-
-onBeforeRouteLeave(() => {
-  leaving = true
+function scheduleUrlSync() {
   window.clearTimeout(urlTimer)
+  urlTimer = window.setTimeout(async () => {
+    if (leaving || !palette.count) return
+    const state = await encodeState(palette.toState())
+    // Re-checked after the await: the user may have navigated away, and a
+    // pending replace would then pull them back to the studio.
+    if (leaving) return
+    remember(state)
+    if (route.params.state === state) return
+    selfWritten = state
+    void router.replace({ name: 'shared', params: { state } })
+  }, 500)
+}
+
+watch(() => palette.swatches, scheduleUrlSync, { deep: false })
+
+// The note beside the link names the saved record, the title and whether the
+// palette has changed since; each of those can move without a colour moving.
+watch(() => [palette.paletteUuid, palette.title, palette.dirty], () => remember())
+
+/*
+ * `leaving` guards the debounced replace against a navigation elsewhere: a
+ * pending write landing after the user has moved to another page would pull
+ * them back. It is set from a global hook rather than `onBeforeRouteLeave`,
+ * because the studio's own first write moves it from the `studio` record to
+ * the `shared` one, and a leave guard fires for that too. The component is
+ * reused across the two records, so the flag set on that first write silenced
+ * every write after it: the address bar stopped following the palette after
+ * its first edit, and a reload brought back the palette as it was then.
+ */
+const STUDIO_ROUTES = new Set(['studio', 'shared'])
+const stopLeaveWatch = router.beforeEach((to) => {
+  leaving = !STUDIO_ROUTES.has(String(to.name))
+  if (leaving) window.clearTimeout(urlTimer)
 })
 
-onUnmounted(() => window.clearTimeout(urlTimer))
+onUnmounted(() => {
+  window.clearTimeout(urlTimer)
+  stopLeaveWatch()
+})
 
 /**
  * Below `lg` both panels are sheets over the palette rather than columns

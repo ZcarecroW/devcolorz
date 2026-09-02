@@ -13,7 +13,7 @@
  *    pointer-up, blur, enter — rather than on every tick.
  */
 
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { formatColor, parseColor } from '@/lib/color/convert'
 import { deltaEOK } from '@/lib/color/gamut'
@@ -68,6 +68,45 @@ export const usePaletteStore = defineStore('palette', () => {
   const future = shallowRef<HistoryEntry[]>([])
   const historyLimit = 200
   let suppressHistory = false
+
+  // A renamed palette is a changed palette. Synchronous, so a caller that sets
+  // the title and clears the flag in the same breath ends up with it clear.
+  watch(
+    title,
+    () => {
+      dirty.value = true
+    },
+    { flush: 'sync' },
+  )
+
+  /* ---------------- the saved record ---------------- */
+
+  /** The palette on screen is now the saved record `uuid`, as of this moment. */
+  function markSaved(uuid: string, savedTitle: string) {
+    paletteUuid.value = uuid
+    title.value = savedTitle
+    dirty.value = false
+  }
+
+  /**
+   * The palette on screen is nobody's saved record.
+   *
+   * Opening a foreign link, or losing the record it came from, leaves a
+   * palette that saving must create afresh rather than write over something
+   * that is not it.
+   */
+  function detach(nextTitle = '') {
+    paletteUuid.value = null
+    title.value = nextTitle
+    dirty.value = false
+  }
+
+  /** Restore what a tab knew about its palette, after a reload. */
+  function adoptIdentity(identity: { uuid: string | null; title: string; dirty: boolean }) {
+    paletteUuid.value = identity.uuid
+    title.value = identity.title
+    dirty.value = identity.dirty
+  }
 
   /* ---------------- derived ---------------- */
 
@@ -520,6 +559,9 @@ export const usePaletteStore = defineStore('palette', () => {
     title,
     paletteUuid,
     dirty,
+    markSaved,
+    detach,
+    adoptIdentity,
     past,
     future,
     colors,

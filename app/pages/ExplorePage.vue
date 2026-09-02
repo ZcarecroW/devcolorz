@@ -17,6 +17,7 @@ import { toast } from 'vue-sonner'
 import InfoHint from '@/components/common/InfoHint.vue'
 import PaletteCard from '@/components/palette/PaletteCard.vue'
 import { encodeForGenerator } from '@/lib/palette/document'
+import { rememberLink } from '@/lib/palette/identity'
 import type { PaletteListResponse, PaletteSummary } from '@/lib/palette/document'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,7 +32,6 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ApiError, api } from '@/lib/api'
-import { usePaletteStore } from '@/stores/palette'
 
 type ExploreSort = 'trending' | 'new' | 'likes'
 
@@ -51,7 +51,6 @@ const SORT_HINTS: Record<ExploreSort, string> = {
 const COUNT_OPTIONS = [3, 4, 5, 6, 7, 8, 9, 10]
 
 const router = useRouter()
-const palette = usePaletteStore()
 
 const items = ref<PaletteSummary[]>([])
 const nextCursor = ref<string | null>(null)
@@ -216,9 +215,9 @@ async function openInGenerator(item: PaletteSummary) {
     toast.error('That palette has no readable colors')
     return
   }
-  palette.title = item.title
-  // Someone else's palette: opening it must not claim their saved record.
-  palette.paletteUuid = null
+  // Someone else's palette: the studio gets its title, and no saved record —
+  // opening it must not claim theirs, so Save there makes a copy of your own.
+  rememberLink(encoded, { uuid: null, title: item.title, dirty: false })
   await router.push({ name: 'shared', params: { state: encoded } })
 }
 

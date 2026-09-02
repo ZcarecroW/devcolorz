@@ -235,6 +235,21 @@ An account adds saving, collections, version history, and public palette pages.
 Registration may need an invitation code, depending on how the administrator
 configured the instance.
 
+### Saving
+
+The **Save** button in the toolbar, beside Copy link, saves the palette on
+screen to your library — or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>.
+The first save creates a private palette; every save after that writes over
+the same one, with no dialog in the way. The button reads **Saved** and stays
+quiet until something changes, then offers to save the changes.
+
+The studio keeps track of which saved palette it is showing, across reloads
+and for as long as the tab is open. A palette opened from your library is that
+palette, so saving overwrites it. One opened from Explore, or from somebody's
+link, is not yours — saving makes a copy in your library and leaves theirs
+alone. When you want a copy of your own palette instead, the menu beside the
+button has **Save as a new palette**.
+
 ---
 
 ## Keyboard
@@ -248,6 +263,7 @@ Press <kbd>?</kbd> for the full list. The essentials:
 | <kbd>R</kbd> | Re-roll the hovered colour |
 | <kbd>Ctrl</kbd>+<kbd>Z</kbd> | Undo — unlimited, and a whole slider drag is one step |
 | <kbd>Ctrl</kbd>+<kbd>K</kbd> | Command palette |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> | Save to your library — overwriting the palette this one came from |
 | <kbd>Ctrl</kbd>+<kbd>V</kbd> | Paste colours, or an image, from the clipboard |
 | <kbd>D</kbd> | Toggle dark mode |
 | <kbd>[</kbd> <kbd>]</kbd> | Show or hide the side panels |
