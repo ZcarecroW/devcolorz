@@ -13,4 +13,4 @@ namespace DevColorz;
  * file, and the updater reads it out of an archive to confirm that what is
  * inside matches the release it claims to be.
  */
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.0';

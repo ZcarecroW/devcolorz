@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.7.0 — 2026-09-02
+
+**Save from the studio.** A Save button sits in the toolbar beside Copy link,
+with Ctrl+Shift+S and a command-palette entry behind it. The first press
+saves the palette on screen to your library; every press after that writes
+over the same record, with no dialog in the way — the button says "Saved" and
+goes quiet until something changes, and reads "Save changes to Harbour" once
+something has. Its menu offers "Save as a new palette" for the times a copy is
+what you want, and a shortcut to the library. Signed out, the button takes you
+to sign in and brings the palette back with you.
+
+The studio also knows *which* saved palette it is showing, and keeps knowing
+across a reload. A palette opened from the library is that record — saving
+overwrites it — while one opened from Explore or a stranger's link is not:
+saving makes a copy of your own. That note travels beside the studio's own
+address, per tab, so a reload comes back to the saved palette as the saved
+palette, with its title, and never mistakes a colleague's link for one of
+yours.
+
+**Fixed alongside:**
+
+- **The address bar stopped following the palette after its first edit.** The
+  studio marked itself as leaving through a route-leave guard, and its own
+  first address write counted as leaving the route it started on. One flag,
+  set once, silenced every write after it, so the address bar held the palette
+  as it was after the first change and a reload brought that one back.
+- **The MILELO mark was crushed on a phone.** A 375-pixel screen was about
+  45 pixels short for the header, and the difference came out of the one item
+  with no minimum width. Every mark keeps its size now; the gaps close up,
+  "Sign in" becomes its icon, and the wordmark is what gives way.
+
 ## 1.6.0 — 2026-09-02
 
 A bug-fix pass over the whole project: every module read end to end, the
